@@ -1,0 +1,784 @@
+<title>TN-Reservoir</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one working column (max 780px) under a sticky header + tab bar; the day timeline scrolls sideways inside its own box. */
+:root{
+  --bg:#F7F7EE; --surface:#FFFFFB; --sunk:#EEEFE5; --ink:#18201D; --muted:#5A645F; --line:#DCDFD3;
+  --accent:#4A6B64; --accent-ink:#FFFFFF; --accent-soft:#E2ECE7;
+  --ok:#2B774A; --ok-soft:#DCEFE3; --wait:#94590A; --wait-soft:#FAEACB; --bad:#A33838; --bad-soft:#F6DDDB; --off:#666E7A; --off-soft:#E6E9ED;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#101513; --surface:#171E1B; --sunk:#1E2723; --ink:#E7ECE8; --muted:#9BA7A1; --line:#2B3632;
+  --accent:#8FB8AD; --accent-ink:#0F1F1B; --accent-soft:#1D2F2A;
+  --ok:#62C28E; --ok-soft:#173326; --wait:#E3A746; --wait-soft:#3A2B12; --bad:#E57E7B; --bad-soft:#3D1D1D; --off:#9AA2AE; --off-soft:#232B36;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#101513; --surface:#171E1B; --sunk:#1E2723; --ink:#E7ECE8; --muted:#9BA7A1; --line:#2B3632;
+  --accent:#8FB8AD; --accent-ink:#0F1F1B; --accent-soft:#1D2F2A;
+  --ok:#62C28E; --ok-soft:#173326; --wait:#E3A746; --wait-soft:#3A2B12; --bad:#E57E7B; --bad-soft:#3D1D1D; --off:#9AA2AE; --off-soft:#232B36;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:780px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:1.75rem;line-height:1.15}
+h2{font-size:1.2rem}
+h3{font-size:1rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.84rem}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;padding-block:12px 6px}
+.brand .logo{flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--line)}
+.brand b{font-family:var(--display);font-size:1.2rem;letter-spacing:-.01em}
+.mode{margin-left:auto;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--wait-soft);color:var(--wait)}
+.mode.live{background:var(--ok-soft);color:var(--ok)}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tabs a{position:relative;display:flex;align-items:center;gap:6px;padding:10px 12px 11px;color:var(--muted);text-decoration:none;font-weight:600;font-size:.92rem;white-space:nowrap;border-bottom:2px solid transparent}
+.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+.badge{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:.72rem;font-weight:700;display:inline-grid;place-items:center}
+.badge.wait{background:var(--wait);color:var(--surface)}
+
+.demo{background:var(--wait-soft);color:var(--wait);font-size:.84rem}
+.demo .wrap{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding-block:8px}
+.demo button{font:inherit;font-weight:600;color:inherit;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
+
+main{padding-block:24px 96px}
+section[data-view]{display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+.head{display:grid;gap:6px}
+
+/* forms */
+form{display:grid;gap:16px}
+.field{display:grid;gap:6px;min-width:0}
+label{font-weight:600;font-size:.88rem}
+.hint{font-size:.8rem;color:var(--muted);font-weight:400}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;min-height:46px}
+textarea{min-height:76px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px}
+@media (max-width:560px){.row3{grid-template-columns:1fr 1fr}.row3 .f-date{grid-column:1/-1}.row2.stack{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:16px}
+
+.btn{font:inherit;font-weight:600;border-radius:9px;border:1px solid transparent;padding:10px 16px;min-height:44px;cursor:pointer;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{filter:brightness(1.06)}
+.btn:disabled{opacity:.55;cursor:progress}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ok{background:var(--ok);color:var(--surface)}
+.btn.bad{background:transparent;color:var(--bad);border-color:var(--bad)}
+.btn.sm{min-height:36px;padding:6px 12px;font-size:.86rem}
+.btn[data-armed="1"]{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+.btn.wide{width:100%}
+
+/* availability */
+.avail{border-radius:10px;background:var(--sunk);padding:12px 14px;display:grid;gap:8px;font-size:.9rem}
+.avail ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.avail li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.note{border-radius:9px;padding:9px 12px;font-size:.88rem;font-weight:500}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+.note.wait{background:var(--wait-soft);color:var(--wait)}
+.note.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.s-Pending{background:var(--wait-soft);color:var(--wait)}
+.s-Approved{background:var(--ok-soft);color:var(--ok)}
+.s-Declined{background:var(--bad-soft);color:var(--bad)}
+.s-Cancelled{background:var(--off-soft);color:var(--off)}
+
+/* request cards */
+.list{display:grid;gap:12px}
+.req{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px;min-width:0}
+.req-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;align-items:flex-start}
+.when{font-family:var(--display);font-weight:600;font-size:1.05rem;font-variant-numeric:tabular-nums}
+.who{font-size:.9rem}
+.who b{font-weight:600}
+.team{display:inline-block;font-size:.76rem;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent)}
+.purpose{font-size:.9rem;color:var(--muted);overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.actions input{flex:1 1 180px;min-height:36px;padding:6px 10px;font-size:.88rem}
+.adminnote{font-size:.86rem;border-left:2px solid var(--line);padding-left:10px;color:var(--muted)}
+
+/* schedule */
+.daynav{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.daynav input{width:auto;flex:1 1 140px;min-width:0}
+.daylabel{font-family:var(--display);font-size:1.15rem;font-weight:600;margin-left:4px}
+.tl{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.tl-inner{min-width:700px}
+.tl-row{display:grid;grid-template-columns:150px 1fr;border-top:1px solid var(--line);min-height:56px}
+.tl-row.head{border-top:0;min-height:30px}
+.tl-name{padding:9px 12px;font-weight:600;font-size:.86rem;line-height:1.25;border-right:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.tl-name span{display:block;font-weight:400;color:var(--muted);font-size:.76rem}
+.tl-track{position:relative;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px calc(100% / 17))}
+.tl-row.head .tl-track{background:none}
+.tl-hour{position:absolute;top:8px;transform:translateX(-50%);font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.blk{position:absolute;top:7px;bottom:7px;border-radius:6px;padding:3px 6px;font-size:.72rem;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:6px}
+.blk.Approved{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}
+.blk.Pending{background:repeating-linear-gradient(135deg,var(--wait-soft) 0 6px,var(--surface) 6px 11px);color:var(--wait);border:1px dashed var(--wait)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.legend .a{background:var(--ok-soft);border:1px solid var(--ok)}
+.legend .p{background:repeating-linear-gradient(135deg,var(--wait-soft) 0 3px,var(--surface) 3px 6px);border:1px dashed var(--wait)}
+
+/* admin */
+.stats{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:.92rem}
+.stats b{font-family:var(--display);font-size:1.35rem;margin-right:5px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:.86rem;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.flag{font-size:.84rem;font-weight:600}
+.flag.bad{color:var(--bad)}
+.flag.wait{color:var(--wait)}
+.bldg{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}
+.bldg:first-child{border-top:0;padding-top:0}
+.bldg .info{min-width:0;flex:1 1 220px}
+.bldg.hiddenb .info b{color:var(--muted);text-decoration:line-through}
+.sectionhead{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:baseline}
+
+/* locations */
+.grouphead{display:flex;align-items:baseline;gap:10px;margin-top:4px}
+.grouphead h2{font-size:1.05rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.loc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px;align-content:start;min-width:0}
+.loc h3{font-size:1.08rem}
+.state{font-size:.88rem;font-weight:600}
+.state.free{color:var(--ok)}
+.state.busy{color:var(--bad)}
+.state.soon{color:var(--wait)}
+.next{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.86rem}
+.next li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+/* calendar */
+.calbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.calbar select{width:auto;flex:1 1 200px;min-width:0}
+.monthlabel{font-family:var(--display);font-size:1.25rem;font-weight:700;flex:1 1 auto}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--line);gap:1px}
+.cal .dow{background:var(--sunk);font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px;text-align:center}
+.cal .cell{background:var(--surface);min-height:96px;padding:5px;display:flex;flex-direction:column;gap:3px;text-align:left;font:inherit;color:inherit;border:0;cursor:pointer;min-width:0}
+.cal .cell.out{background:var(--bg);color:var(--muted)}
+.cal .cell.past .dnum{color:var(--muted)}
+.cal .cell[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:-2px}
+.dnum{font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;width:24px;height:24px;display:grid;place-items:center;border-radius:50%}
+.cell.today .dnum{background:var(--accent);color:var(--accent-ink)}
+.ev{font-size:.68rem;line-height:1.25;padding:1px 4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.Approved{background:var(--ok-soft);color:var(--ok)}
+.ev.Pending{background:var(--wait-soft);color:var(--wait);border:1px dashed var(--wait)}
+.more{font-size:.68rem;color:var(--muted);font-weight:600}
+@media (max-width:560px){.cal .cell{min-height:64px;padding:3px}.ev{font-size:0;height:5px;padding:0;border-radius:3px}.ev.Pending{border-width:1px}.more{font-size:.62rem}}
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;color:var(--muted);display:grid;gap:10px;justify-items:center}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:10px;font-weight:600;font-size:.9rem;max-width:calc(100% - 32px);z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.toast.err{background:var(--bad);color:#fff}
+@media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <img class="logo" src="data:image/png;base64,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" width="34" height="34" alt="">
+      <b>TN-Reservoir</b>
+      <span class="mode" id="modePill">Demo</span>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#book" data-tab="book">Book</a>
+      <a href="#locations" data-tab="locations">Locations</a>
+      <a href="#calendar" data-tab="calendar">Calendar</a>
+      <a href="#schedule" data-tab="schedule">Day view</a>
+      <a href="#mine" data-tab="mine">My requests <span class="badge" id="mineBadge" hidden></span></a>
+      <a href="#admin" data-tab="admin">Admin <span class="badge wait" id="adminBadge" hidden></span></a>
+    </nav>
+  </div>
+</header>
+<div class="demo" id="demoBar" hidden>
+  <div class="wrap"><span><b>Demo mode.</b> Your five locations with example requests. Data stays in this browser. Admin PIN is <b>1234</b>.</span><button type="button" data-act="reset-demo" data-confirm="Tap again to reset">Reset demo data</button></div>
+</div>
+
+<main class="wrap">
+  <!-- BOOK -->
+  <section data-view="book">
+    <div class="head">
+      <h1>Request a location</h1>
+      <p class="muted">Pick a location and a time. An admin reviews every request, and you can check its status under My requests.</p>
+    </div>
+    <form id="bookForm" class="panel" novalidate>
+      <div class="row2 stack">
+        <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" maxlength="80" placeholder="First and last name" required></div>
+        <div class="field"><label for="f-team">Team</label><select id="f-team" name="team" required></select></div>
+      </div>
+      <div class="field">
+        <label for="f-building">Location</label>
+        <select id="f-building" name="buildingId" required></select>
+        <span class="hint" id="b-info"></span>
+      </div>
+      <div class="row3">
+        <div class="field f-date"><label for="f-date">Date</label><input id="f-date" name="date" type="date" required></div>
+        <div class="field"><label for="f-start">Start</label><input id="f-start" name="start" type="time" step="900" required></div>
+        <div class="field"><label for="f-end">End</label><input id="f-end" name="end" type="time" step="900" required></div>
+      </div>
+      <div class="avail" id="avail" aria-live="polite"></div>
+      <div class="field"><label for="f-purpose">What is it for? <span class="hint">Optional</span></label><textarea id="f-purpose" name="purpose" maxlength="300" placeholder="e.g. Team meeting, rehearsal, training"></textarea></div>
+      <button class="btn wide" type="submit" id="submitBtn">Send request</button>
+    </form>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section data-view="schedule" hidden>
+    <div class="head">
+      <h1>Day view</h1>
+      <p class="muted">Every location on one day: approved bookings and requests waiting for approval.</p>
+    </div>
+    <div class="daynav">
+      <button class="btn ghost sm" data-act="day-prev" aria-label="Previous day">‹ Prev</button>
+      <input type="date" id="dayPick" aria-label="Pick a day">
+      <button class="btn ghost sm" data-act="day-next" aria-label="Next day">Next ›</button>
+      <button class="btn ghost sm" data-act="day-today">Today</button>
+    </div>
+    <div class="daylabel" id="dayLabel"></div>
+    <div id="timeline"></div>
+    <div class="legend"><span><i class="a"></i>Approved</span><span><i class="p"></i>Waiting for approval</span></div>
+    <div class="list" id="dayList"></div>
+  </section>
+
+  <!-- LOCATIONS -->
+  <section data-view="locations" hidden>
+    <div class="head">
+      <h1>Locations available</h1>
+      <p class="muted">Where you can book, grouped by campus, with what's happening today.</p>
+    </div>
+    <div id="locList" style="display:grid;gap:20px"></div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section data-view="calendar" hidden>
+    <div class="head">
+      <h1>Calendar</h1>
+      <p class="muted">All bookings by month. Tap a day to see its bookings.</p>
+    </div>
+    <div class="calbar">
+      <span class="monthlabel" id="monthLabel"></span>
+      <button class="btn ghost sm" data-act="cal-prev" aria-label="Previous month">‹</button>
+      <button class="btn ghost sm" data-act="cal-today">This month</button>
+      <button class="btn ghost sm" data-act="cal-next" aria-label="Next month">›</button>
+    </div>
+    <select id="calLoc" aria-label="Filter by location"></select>
+    <div id="calGrid"></div>
+    <div class="legend"><span><i class="a"></i>Approved</span><span><i class="p"></i>Waiting for approval</span></div>
+    <div id="calDay" style="display:grid;gap:12px"></div>
+  </section>
+
+  <!-- MINE -->
+  <section data-view="mine" hidden>
+    <div class="head">
+      <h1>My requests</h1>
+      <p class="muted">Requests sent from this device. You can cancel any that are still pending or approved.</p>
+    </div>
+    <div class="list" id="mineList"></div>
+  </section>
+
+  <!-- ADMIN -->
+  <section data-view="admin" hidden>
+    <div id="adminRoot"></div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const CFG = window.RESERVE_CONFIG || {};
+const LIVE = !!(CFG.API_URL && /^https:\/\//.test(CFG.API_URL));
+const DEMO_PIN = "1234";
+const TEAM_GROUPS = [
+  ["NF", ["NF1","NF2","NF3","NF4"]],
+  ["TN", ["TN1","TN2","TN3","TN4"]],
+  ["Center Workers", ["Center Workers 15","Center Workers 17","Center Workers 18","Center Workers 19","Center Workers 20"]],
+  ["MWG", ["MWG"]]
+];
+const TEAMS = TEAM_GROUPS.flatMap(g => g[1]);
+const OPEN = ["Pending","Approved"];
+const DAY_START = 6*60, DAY_END = 23*60;
+
+/* ---------- small helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = () => isoDate(new Date());
+const parseISO = iso => { const [y,m,d] = iso.split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (iso, n) => { const d = parseISO(iso); d.setDate(d.getDate()+n); return isoDate(d); };
+const fmtDate = (iso, long) => parseISO(iso).toLocaleDateString(undefined, long ? {weekday:"long", month:"long", day:"numeric"} : {weekday:"short", month:"short", day:"numeric"});
+const fmtTime = t => { const [H,M] = t.split(":").map(Number); const h = H%12 || 12; return `${h}${M ? ":"+pad(M) : ""} ${H>=12 ? "PM" : "AM"}`; };
+const mins = t => { const [H,M] = t.split(":").map(Number); return H*60+M; };
+const rid = () => Math.random().toString(36).slice(2,10);
+const store = (area) => ({
+  get(k, d){ try { const v = window[area].getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set(k, v){ try { window[area].setItem(k, JSON.stringify(v)); } catch(e){} },
+  del(k){ try { window[area].removeItem(k); } catch(e){} }
+});
+const ls = store("localStorage"), ss = store("sessionStorage");
+
+/* ---------- rules shared by demo + server ---------- */
+function checkRequest(p, buildings){
+  const name = String(p.name || "").trim();
+  if (!name) throw new Error("Enter your name.");
+  if (name.length > 80) throw new Error("Keep the name under 80 characters.");
+  if (!TEAMS.includes(p.team)) throw new Error("Choose your team.");
+  const b = buildings.find(x => x.id === p.buildingId && x.active);
+  if (!b) throw new Error("Choose a location that is open for booking.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "")) throw new Error("Choose a date.");
+  if (p.date < today()) throw new Error("That date has already passed.");
+  if (!/^\d{2}:\d{2}$/.test(p.start || "") || !/^\d{2}:\d{2}$/.test(p.end || "")) throw new Error("Choose a start and end time.");
+  if (p.start >= p.end) throw new Error("The end time needs to be after the start time.");
+  return { name, b };
+}
+function clash(list, p, status, excludeId){
+  return list.find(r => r.id !== excludeId && r.status === status && r.buildingId === p.buildingId && r.date === p.date && r.start < p.end && p.start < r.end);
+}
+
+/* ---------- demo backend (in this browser) ---------- */
+let mem = null;
+function seed(){
+  const t = today(), now = new Date().toISOString();
+  const mk = (id, team, b, date, start, end, purpose, status) => ({ id, createdAt: now, name: "Sample booker", team, buildingId: b, buildingName: "", date, start, end, purpose, status, adminNote: "", updatedAt: now, secret: "demo" });
+  return {
+    buildings: [
+      { id:"b1", name:"Vandy Buttrick Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b2", name:"Vandy Calhoun", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b3", name:"Vandy Student Center", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b4", name:"Vandy Wilson Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b5", name:"Belmont Barbara Massey", group:"Belmont", capacity:"", notes:"", active:true }
+    ],
+    bookings: [
+      mk("ex1","NF2","b1",t,"18:00","20:00","Team meeting (example)","Approved"),
+      mk("ex2","NF1","b1",t,"19:00","21:00","Prayer night (example)","Pending"),
+      mk("ex3","Center Workers 17","b3",t,"13:00","14:30","Training (example)","Pending"),
+      mk("ex4","TN1","b2",addDays(t,1),"10:00","12:00","Bible study (example)","Pending"),
+      mk("ex6","NF3","b5",addDays(t,4),"17:00","19:00","Outreach prep (example)","Approved"),
+      mk("ex7","Center Workers 19","b4",addDays(t,6),"12:00","13:30","Lunch meeting (example)","Pending"),
+      mk("ex5","MWG","b1",addDays(t,2),"09:00","11:00","Rehearsal (example)","Approved")
+    ]
+  };
+}
+async function demoCall(action, p){
+  await new Promise(r => setTimeout(r, 160));
+  if (!mem) mem = ls.get("br_demo_v2", null) || seed();
+  const db = mem, now = new Date().toISOString();
+  const pin = () => { if (p.pin !== DEMO_PIN) throw new Error("That PIN is not right. In demo mode it is 1234."); };
+  const pub = r => { const { secret, ...x } = r; return x; };
+  const findR = () => { const r = db.bookings.find(x => x.id === p.id); if (!r) throw new Error("Request not found."); return r; };
+  let out;
+  switch (action){
+    case "listPublic": out = { buildings: db.buildings.filter(b => b.active), bookings: db.bookings.map(pub) }; break;
+    case "create": {
+      const { name, b } = checkRequest(p, db.buildings);
+      const c = clash(db.bookings, p, "Approved");
+      if (c) throw new Error(`${b.name} is already booked ${fmtTime(c.start)}–${fmtTime(c.end)} that day. Pick another time.`);
+      const r = { id: rid(), createdAt: now, name, team: p.team, buildingId: b.id, buildingName: b.name, date: p.date, start: p.start, end: p.end, purpose: String(p.purpose || "").trim().slice(0,300), status: "Pending", adminNote: "", updatedAt: now, secret: rid()+rid() };
+      db.bookings.push(r); out = { id: r.id, secret: r.secret }; break;
+    }
+    case "cancelMine": {
+      const r = findR();
+      if (r.secret !== p.secret) throw new Error("This request can only be cancelled from the device that sent it.");
+      if (!OPEN.includes(r.status)) throw new Error("This request is already closed.");
+      r.status = "Cancelled"; r.adminNote = "Cancelled by requester"; r.updatedAt = now; out = true; break;
+    }
+    case "adminCheck": pin(); out = true; break;
+    case "adminList": pin(); out = { buildings: db.buildings, bookings: db.bookings.map(pub) }; break;
+    case "setStatus": {
+      pin(); const r = findR();
+      if (!["Pending","Approved","Declined","Cancelled"].includes(p.status)) throw new Error("Unknown status.");
+      if (p.status === "Approved"){ const c = clash(db.bookings, r, "Approved", r.id); if (c) throw new Error(`This clashes with an approved booking for ${c.team} (${fmtTime(c.start)}–${fmtTime(c.end)}). Cancel that one first, or decline this one.`); }
+      r.status = p.status; if (p.note) r.adminNote = String(p.note).trim().slice(0,300); r.updatedAt = now; out = true; break;
+    }
+    case "addBuilding": {
+      pin(); const name = String(p.name || "").trim();
+      if (!name) throw new Error("Give the location a name.");
+      if (db.buildings.some(b => b.name.toLowerCase() === name.toLowerCase())) throw new Error("A location with that name already exists.");
+      const b = { id: rid(), name, group: String(p.group || "").trim(), capacity: p.capacity ? Number(p.capacity) : "", notes: String(p.notes || "").trim(), active: true, createdAt: now };
+      db.buildings.push(b); out = b; break;
+    }
+    case "updateBuilding": {
+      pin(); const b = db.buildings.find(x => x.id === p.id); if (!b) throw new Error("Location not found.");
+      if ("group" in p) b.group = String(p.group || "").trim();
+      if ("active" in p) b.active = !!p.active;
+      if (p.name) b.name = String(p.name).trim();
+      if ("capacity" in p) b.capacity = p.capacity ? Number(p.capacity) : "";
+      if ("notes" in p) b.notes = String(p.notes || "").trim();
+      out = b; break;
+    }
+    case "deleteBuilding": {
+      pin();
+      if (db.bookings.some(r => r.buildingId === p.id && r.date >= today() && OPEN.includes(r.status))) throw new Error("This location has upcoming bookings. Hide it instead, or cancel those bookings first.");
+      db.buildings = db.buildings.filter(b => b.id !== p.id); out = true; break;
+    }
+    case "resetDemo": mem = seed(); out = true; break;
+    default: throw new Error("Unknown action.");
+  }
+  ls.set("br_demo_v2", mem);
+  return JSON.parse(JSON.stringify(out));
+}
+
+/* ---------- live backend (Google Apps Script) ---------- */
+async function remoteCall(action, p){
+  let res;
+  try {
+    res = await fetch(CFG.API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...p, action }) });
+  } catch(e){ throw new Error("Could not reach the booking sheet. Check your connection and try again."); }
+  let j;
+  try { j = await res.json(); } catch(e){ throw new Error("The booking sheet sent back something unexpected. Check the web app URL in config.js."); }
+  if (!j.ok) throw new Error(j.error || "Something went wrong.");
+  return j.data;
+}
+const call = (a, p = {}) => LIVE ? remoteCall(a, p) : demoCall(a, p);
+
+/* ---------- state ---------- */
+const S = {
+  view: "book", buildings: [], bookings: [], loaded: false,
+  day: today(), month: today().slice(0,7), calSel: today(), calLoc: "",
+  mine: ls.get("br_mine", []),
+  me: ls.get("br_me", { name: "", team: "" }),
+  pin: ss.get("br_pin", ""),
+  admin: null, adminErr: "", filter: "Pending"
+};
+const groupsOf = list => { const m = new Map(); list.forEach(b => { const g = b.group || "Other"; if (!m.has(g)) m.set(g, []); m.get(g).push(b); }); return [...m.entries()]; };
+const nowHM = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const bName = r => ((S.admin && S.admin.buildings) || S.buildings).find(b => b.id === r.buildingId)?.name || r.buildingName || "Removed location";
+const byWhen = (a, b) => (a.date + a.start).localeCompare(b.date + b.start);
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg, err){
+  const t = $("#toast"); t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, err ? 5200 : 3200);
+}
+
+/* ---------- data ---------- */
+async function refresh(){
+  try {
+    const d = await call("listPublic");
+    S.buildings = d.buildings; S.bookings = d.bookings; S.loaded = true;
+  } catch(e){ toast(e.message, true); }
+  render();
+}
+async function loadAdmin(){
+  if (!S.pin) return;
+  try { S.admin = await call("adminList", { pin: S.pin }); S.adminErr = ""; }
+  catch(e){ S.admin = null; S.adminErr = e.message; if (/pin/i.test(e.message)) { S.pin = ""; ss.del("br_pin"); } }
+  render();
+}
+
+/* ---------- render: shared ---------- */
+function render(){
+  document.querySelectorAll("section[data-view]").forEach(s => s.hidden = s.dataset.view !== S.view);
+  document.querySelectorAll("[data-tab]").forEach(a => a.dataset.tab === S.view ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
+  const mineOpen = mineRows().filter(r => OPEN.includes(r.status) && r.date >= today()).length;
+  const mb = $("#mineBadge"); mb.hidden = !mineOpen; mb.textContent = mineOpen;
+  const pend = S.admin ? S.admin.bookings.filter(r => r.status === "Pending" && r.date >= today()).length : 0;
+  const ab = $("#adminBadge"); ab.hidden = !pend; ab.textContent = pend;
+  renderBuildingSelect(); renderAvail(); renderLocations(); renderCalendar(); renderSchedule(); renderMine(); renderAdmin();
+}
+
+/* ---------- render: book ---------- */
+function renderTeamSelect(){
+  $("#f-team").innerHTML = `<option value="">Choose your team</option>` +
+    TEAM_GROUPS.map(([g, items]) => items.length === 1 ? `<option value="${esc(items[0])}">${esc(items[0])}</option>` :
+      `<optgroup label="${esc(g)}">${items.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</optgroup>`).join("");
+}
+function renderBuildingSelect(){
+  const sel = $("#f-building"), cur = sel.value;
+  if (!S.buildings.length){ sel.innerHTML = `<option value="">${S.loaded ? "No locations available yet" : "Loading locations…"}</option>`; $("#b-info").textContent = ""; return; }
+  sel.innerHTML = `<option value="">Choose a location</option>` + groupsOf(S.buildings).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join("")}</optgroup>`).join("");
+  if (S.buildings.some(b => b.id === cur)) sel.value = cur;
+  const b = S.buildings.find(x => x.id === sel.value);
+  $("#b-info").textContent = b ? [b.group, b.capacity ? `Holds about ${b.capacity}` : "", b.notes].filter(Boolean).join(" · ") : "";
+}
+function renderAvail(){
+  const box = $("#avail"), bid = $("#f-building").value, date = $("#f-date").value, start = $("#f-start").value, end = $("#f-end").value;
+  if (!bid || !date){ box.innerHTML = `<span class="muted">Choose a location and date to see what is already booked.</span>`; return; }
+  const day = S.bookings.filter(r => r.buildingId === bid && r.date === date && OPEN.includes(r.status)).sort(byWhen);
+  let html = day.length
+    ? `<b>Already on ${esc(fmtDate(date))}</b><ul>${day.map(r => `<li><span class="num">${fmtTime(r.start)}–${fmtTime(r.end)}</span><span class="team">${esc(r.team)}</span><span class="pill s-${r.status}">${r.status === "Pending" ? "Pending" : "Booked"}</span></li>`).join("")}</ul>`
+    : `<span>Nothing booked yet for ${esc(fmtDate(date))}.</span>`;
+  if (start && end && start < end){
+    const p = { buildingId: bid, date, start, end };
+    const a = clash(S.bookings, p, "Approved"), w = clash(S.bookings, p, "Pending");
+    if (a) html += `<div class="note bad">Your time overlaps an approved booking (${fmtTime(a.start)}–${fmtTime(a.end)}). Pick another time.</div>`;
+    else if (w) html += `<div class="note wait">Someone has a pending request for part of this time. You can still send yours; the admin will decide.</div>`;
+    else html += `<div class="note ok">This time is free.</div>`;
+  } else if (start && end) html += `<div class="note bad">The end time needs to be after the start time.</div>`;
+  box.innerHTML = html;
+}
+
+/* ---------- render: schedule ---------- */
+function renderSchedule(){
+  $("#dayPick").value = S.day;
+  $("#dayLabel").textContent = fmtDate(S.day, true) + (S.day === today() ? " · Today" : "");
+  const tl = $("#timeline");
+  if (!S.buildings.length){ tl.innerHTML = `<div class="empty">No locations yet. An admin can add them in the Admin tab.</div>`; $("#dayList").innerHTML = ""; return; }
+  const span = DAY_END - DAY_START;
+  const pct = m => Math.max(0, Math.min(100, (m - DAY_START) / span * 100));
+  const day = S.bookings.filter(r => r.date === S.day && OPEN.includes(r.status)).sort(byWhen);
+  let hours = ""; for (let h = 6; h <= 23; h += 2) hours += `<span class="tl-hour" style="left:${pct(h*60)}%">${h%12||12}${h>=12?"p":"a"}</span>`;
+  tl.innerHTML = `<div class="tl"><div class="tl-inner">
+    <div class="tl-row head"><div class="tl-name"></div><div class="tl-track">${hours}</div></div>
+    ${groupsOf(S.buildings).flatMap(g => g[1]).map(b => `<div class="tl-row"><div class="tl-name">${esc(b.name)}${b.group ? `<span>${esc(b.group)}</span>` : ""}</div><div class="tl-track">${
+      day.filter(r => r.buildingId === b.id).map(r => { const l = pct(mins(r.start)), w = pct(mins(r.end)) - l;
+        return `<div class="blk ${r.status}" style="left:${l}%;width:${w}%" title="${esc(`${r.team} · ${fmtTime(r.start)}–${fmtTime(r.end)} · ${r.status}`)}">${esc(r.team)} · ${fmtTime(r.start)}</div>`; }).join("")
+    }</div></div>`).join("")}
+  </div></div>`;
+  $("#dayList").innerHTML = day.length ? day.map(r => card(r, "day")).join("") : `<div class="empty">Nothing booked on this day yet.</div>`;
+}
+
+/* ---------- render: cards ---------- */
+function card(r, mode){
+  const admin = mode === "admin";
+  let flags = "", actions = "";
+  if (admin && r.status === "Pending"){
+    const list = S.admin.bookings, a = clash(list, r, "Approved", r.id), w = clash(list, r, "Pending", r.id);
+    if (a) flags = `<div class="flag bad">Clashes with approved booking: ${esc(a.team)}, ${fmtTime(a.start)}–${fmtTime(a.end)}</div>`;
+    else if (w) flags = `<div class="flag wait">Overlaps another pending request: ${esc(w.team)}, ${fmtTime(w.start)}–${fmtTime(w.end)}</div>`;
+  }
+  if (admin){
+    const note = `<input id="note-${esc(r.id)}" placeholder="Note to requester (optional)" maxlength="300" aria-label="Note to requester">`;
+    if (r.status === "Pending") actions = `<div class="actions">${note}<button class="btn ok sm" data-act="approve" data-id="${esc(r.id)}">Approve</button><button class="btn bad sm" data-act="decline" data-id="${esc(r.id)}" data-confirm="Tap again to decline">Decline</button></div>`;
+    else if (r.status === "Approved") actions = `<div class="actions">${note}<button class="btn bad sm" data-act="cancel-booking" data-id="${esc(r.id)}" data-confirm="Tap again to cancel">Cancel booking</button></div>`;
+    else if (r.date >= today()) actions = `<div class="actions"><button class="btn ghost sm" data-act="reopen" data-id="${esc(r.id)}">Move back to pending</button></div>`;
+  }
+  if (mode === "mine" && OPEN.includes(r.status) && r.date >= today())
+    actions = `<div class="actions"><button class="btn bad sm" data-act="cancel-mine" data-id="${esc(r.id)}" data-confirm="Tap again to cancel">Cancel request</button></div>`;
+  return `<article class="req">
+    <div class="req-top">
+      <div><div class="when">${esc(fmtDate(r.date))} · ${fmtTime(r.start)}–${fmtTime(r.end)}</div><div class="muted small">${esc(bName(r))}</div></div>
+      <span class="pill s-${esc(r.status)}">${r.status === "Pending" ? "Waiting" : esc(r.status)}</span>
+    </div>
+    <div class="who"><b>${esc(r.name)}</b> <span class="team">${esc(r.team)}</span></div>
+    ${r.purpose ? `<div class="purpose">${esc(r.purpose)}</div>` : ""}
+    ${r.adminNote ? `<div class="adminnote">${esc(r.adminNote)}</div>` : ""}
+    ${flags}${actions}
+  </article>`;
+}
+
+/* ---------- render: locations ---------- */
+function renderLocations(){
+  const root = $("#locList"); if (!root) return;
+  if (!S.buildings.length){ root.innerHTML = `<div class="empty">${S.loaded ? "No locations are open for booking yet." : "Loading locations…"}</div>`; return; }
+  const t = today(), now = nowHM();
+  root.innerHTML = groupsOf(S.buildings).map(([g, items]) => `
+    <div style="display:grid;gap:10px">
+      <div class="grouphead"><h2>${esc(g)}</h2><span class="muted small">${items.length} location${items.length === 1 ? "" : "s"}</span></div>
+      <div class="grid2">${items.map(b => {
+        const todays = S.bookings.filter(r => r.buildingId === b.id && r.date === t && r.status === "Approved").sort(byWhen);
+        const cur = todays.find(r => r.start <= now && now < r.end);
+        const nxt = todays.find(r => r.start > now);
+        const state = cur ? `<div class="state busy">In use now until ${fmtTime(cur.end)} · ${esc(cur.team)}</div>`
+          : nxt ? `<div class="state soon">Free now · booked from ${fmtTime(nxt.start)} today</div>`
+          : `<div class="state free">Free for the rest of today</div>`;
+        const up = S.bookings.filter(r => r.buildingId === b.id && OPEN.includes(r.status) && (r.date > t || (r.date === t && r.end > now))).sort(byWhen).slice(0, 3);
+        return `<article class="loc">
+          <div><h3>${esc(b.name)}</h3>${[b.capacity ? `Holds ${esc(b.capacity)}` : "", esc(b.notes)].filter(Boolean).length ? `<div class="muted small">${[b.capacity ? `Holds ${esc(b.capacity)}` : "", esc(b.notes)].filter(Boolean).join(" · ")}</div>` : ""}</div>
+          ${state}
+          ${up.length ? `<div class="muted small" style="font-weight:600">Coming up</div><ul class="next">${up.map(r => `<li><span class="num">${esc(fmtDate(r.date))} · ${fmtTime(r.start)}–${fmtTime(r.end)}</span><span class="team">${esc(r.team)}</span>${r.status === "Pending" ? `<span class="pill s-Pending">Waiting</span>` : ""}</li>`).join("")}</ul>` : `<div class="muted small">Nothing booked yet.</div>`}
+          <div class="actions"><button class="btn sm" data-act="book-loc" data-id="${esc(b.id)}">Book this location</button><button class="btn ghost sm" data-act="cal-loc" data-id="${esc(b.id)}">See calendar</button></div>
+        </article>`; }).join("")}</div>
+    </div>`).join("");
+}
+
+/* ---------- render: calendar ---------- */
+function renderCalendar(){
+  const grid = $("#calGrid"); if (!grid) return;
+  const sel = $("#calLoc");
+  sel.innerHTML = `<option value="">All locations</option>` + groupsOf(S.buildings).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join("")}</optgroup>`).join("");
+  if (!S.buildings.some(b => b.id === S.calLoc)) S.calLoc = "";
+  sel.value = S.calLoc;
+  const [y, m] = S.month.split("-").map(Number);
+  const first = new Date(y, m-1, 1);
+  $("#monthLabel").textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const start = new Date(y, m-1, 1 - first.getDay());
+  const weeks = Math.ceil((first.getDay() + new Date(y, m, 0).getDate()) / 7);
+  const t = today();
+  const rows = S.bookings.filter(r => OPEN.includes(r.status) && (!S.calLoc || r.buildingId === S.calLoc));
+  const byDay = {}; rows.forEach(r => (byDay[r.date] = byDay[r.date] || []).push(r));
+  let html = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => `<div class="dow">${d}</div>`).join("");
+  for (let i = 0; i < weeks * 7; i++){
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const iso = isoDate(d), list = (byDay[iso] || []).sort(byWhen);
+    const cls = ["cell", d.getMonth() !== m-1 ? "out" : "", iso === t ? "today" : "", iso < t ? "past" : ""].join(" ");
+    const label = `${fmtDate(iso, true)}: ${list.length} booking${list.length === 1 ? "" : "s"}`;
+    html += `<button class="${cls}" data-act="cal-day" data-d="${iso}" aria-pressed="${iso === S.calSel}" aria-label="${esc(label)}"><span class="dnum">${d.getDate()}</span>${
+      list.slice(0, 3).map(r => `<span class="ev ${r.status}">${fmtTime(r.start).replace(":00","").replace(" PM","p").replace(" AM","a")} ${esc(r.team)}</span>`).join("")
+    }${list.length > 3 ? `<span class="more">+${list.length - 3} more</span>` : ""}</button>`;
+  }
+  grid.innerHTML = `<div class="cal">${html}</div>`;
+  const dayRows = (byDay[S.calSel] || []).sort(byWhen);
+  $("#calDay").innerHTML = `<div class="sectionhead"><h2>${esc(fmtDate(S.calSel, true))}</h2><button class="btn ghost sm" data-act="cal-open" data-d="${S.calSel}">Open day view</button></div>` +
+    (dayRows.length ? dayRows.map(r => card(r, "day")).join("") : `<div class="empty"><span>Nothing booked on this day.</span>${S.calSel >= t ? `<button class="btn sm" data-act="book-day" data-d="${S.calSel}">Request a location for this day</button>` : ""}</div>`);
+}
+
+/* ---------- render: mine ---------- */
+function mineRows(){ const ids = new Set(S.mine.map(m => m.id)); return S.bookings.filter(r => ids.has(r.id)); }
+function renderMine(){
+  const rows = mineRows().sort((a, b) => (b.date >= today()) - (a.date >= today()) || byWhen(a, b));
+  $("#mineList").innerHTML = rows.length ? rows.map(r => card(r, "mine")).join("")
+    : `<div class="empty"><span>Requests you send from this device show up here.</span><a class="btn sm" href="#book">Request a location</a></div>`;
+}
+
+/* ---------- render: admin ---------- */
+function renderAdmin(){
+  const root = $("#adminRoot");
+  if (!S.pin){
+    root.innerHTML = `<div class="head"><h1>Admin</h1><p class="muted">Enter the admin PIN to review requests and manage locations.</p></div>
+      <form id="pinForm" class="panel" style="max-width:420px">
+        <div class="field"><label for="f-pin">Admin PIN</label><input id="f-pin" type="password" inputmode="numeric" autocomplete="current-password" required></div>
+        ${S.adminErr ? `<div class="note bad">${esc(S.adminErr)}</div>` : ""}
+        <button class="btn" type="submit">Unlock</button>
+      </form>`;
+    return;
+  }
+  if (!S.admin){ root.innerHTML = `<div class="head"><h1>Admin</h1><p class="muted">${S.adminErr ? esc(S.adminErr) : "Loading requests…"}</p></div>`; return; }
+  const all = S.admin.bookings, t = today();
+  const pending = all.filter(r => r.status === "Pending" && r.date >= t);
+  const upcoming = all.filter(r => r.status === "Approved" && r.date >= t);
+  const closed = all.filter(r => !OPEN.includes(r.status) || r.date < t);
+  const sets = { Pending: pending.sort(byWhen), Approved: upcoming.sort(byWhen), Closed: closed.sort((a,b) => byWhen(b,a)), All: all.slice().sort((a,b) => byWhen(b,a)) };
+  const labels = { Pending: "Waiting", Approved: "Approved, upcoming", Closed: "Past and closed", All: "All" };
+  const rows = sets[S.filter];
+  const blds = S.admin.buildings;
+  root.innerHTML = `
+    <div class="sectionhead"><h1>Admin</h1><button class="btn ghost sm" data-act="lock">Lock</button></div>
+    <div class="stats"><span><b>${pending.length}</b>waiting</span><span><b>${upcoming.length}</b>approved, upcoming</span><span><b>${blds.filter(b => b.active).length}</b>locations open</span></div>
+    <div class="chips" role="group" aria-label="Filter requests">${Object.keys(sets).map(k => `<button class="chip" data-act="filter" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]} · ${sets[k].length}</button>`).join("")}</div>
+    <div class="list">${rows.length ? rows.map(r => card(r, "admin")).join("") : `<div class="empty">${S.filter === "Pending" ? "No requests waiting. You're all caught up." : "Nothing here."}</div>`}</div>
+    <div class="panel">
+      <div class="head"><h2>Locations available</h2><p class="muted small">Only open locations show up for people booking. Hide a location to stop new requests without losing its history.</p></div>
+      <div>${blds.length ? groupsOf(blds).map(([g, items]) => `<div class="grouphead" style="margin-top:10px"><h3>${esc(g)}</h3></div>` + items.map(b => `<div class="bldg ${b.active ? "" : "hiddenb"}"><div class="info"><b>${esc(b.name)}</b><div class="muted small">${[b.capacity ? `Holds ${esc(b.capacity)}` : "", esc(b.notes)].filter(Boolean).join(" · ") || "No details"}${b.active ? "" : " · Hidden"}</div></div>
+        <div class="actions"><button class="btn ghost sm" data-act="b-toggle" data-id="${esc(b.id)}">${b.active ? "Hide" : "Open for booking"}</button><button class="btn bad sm" data-act="b-delete" data-id="${esc(b.id)}" data-confirm="Tap again to delete">Delete</button></div></div>`).join("")).join("")
+        : `<div class="empty">No locations yet. Add the first one below.</div>`}</div>
+      <form id="bForm" style="gap:12px">
+        <h3>Add a location</h3>
+        <div class="row2 stack">
+          <div class="field"><label for="nb-name">Name</label><input id="nb-name" required maxlength="80" placeholder="e.g. Vandy Featheringill Hall"></div>
+          <div class="field"><label for="nb-group">Campus or group</label><input id="nb-group" list="groupList" maxlength="60" placeholder="e.g. Vanderbilt"><datalist id="groupList">${[...new Set(blds.map(b => b.group).filter(Boolean))].map(g => `<option value="${esc(g)}">`).join("")}</datalist></div>
+        </div>
+        <div class="row2 stack">
+          <div class="field"><label for="nb-cap">Capacity <span class="hint">Optional</span></label><input id="nb-cap" type="number" min="1" inputmode="numeric" placeholder="e.g. 120"></div>
+        </div>
+        <div class="field"><label for="nb-notes">Notes <span class="hint">Optional</span></label><input id="nb-notes" maxlength="200" placeholder="e.g. Room 120, projector"></div>
+        </div>
+        <button class="btn" type="submit">Add location</button>
+      </form>
+    </div>`;
+}
+
+/* ---------- events ---------- */
+function arm(el){
+  el.dataset.armed = "1"; el.dataset.label = el.textContent; el.textContent = el.dataset.confirm;
+  setTimeout(() => { if (el.isConnected && el.dataset.armed === "1"){ el.dataset.armed = ""; el.textContent = el.dataset.label; } }, 3500);
+}
+async function adminAct(el, action, payload, msg){
+  el.disabled = true;
+  try { await call(action, { pin: S.pin, ...payload }); toast(msg); await Promise.all([loadAdmin(), refresh()]); }
+  catch(e){ toast(e.message, true); el.disabled = false; }
+}
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-act]"); if (!el) return;
+  if (el.dataset.confirm && el.dataset.armed !== "1"){ e.preventDefault(); arm(el); return; }
+  const act = el.dataset.act, id = el.dataset.id;
+  const note = () => { const n = document.getElementById("note-" + id); return n ? n.value : ""; };
+  switch (act){
+    case "day-prev": S.day = addDays(S.day, -1); renderSchedule(); break;
+    case "day-next": S.day = addDays(S.day, 1); renderSchedule(); break;
+    case "day-today": S.day = today(); renderSchedule(); break;
+    case "filter": S.filter = el.dataset.f; renderAdmin(); break;
+    case "lock": S.pin = ""; S.admin = null; S.adminErr = ""; ss.del("br_pin"); render(); break;
+    case "approve": adminAct(el, "setStatus", { id, status: "Approved", note: note() }, "Approved."); break;
+    case "decline": adminAct(el, "setStatus", { id, status: "Declined", note: note() }, "Declined."); break;
+    case "cancel-booking": adminAct(el, "setStatus", { id, status: "Cancelled", note: note() || "Cancelled by admin" }, "Booking cancelled."); break;
+    case "reopen": adminAct(el, "setStatus", { id, status: "Pending" }, "Moved back to pending."); break;
+    case "b-toggle": { const b = S.admin.buildings.find(x => x.id === id); adminAct(el, "updateBuilding", { id, active: !b.active }, b.active ? "Location hidden." : "Location open for booking."); break; }
+    case "b-delete": adminAct(el, "deleteBuilding", { id }, "Location deleted."); break;
+    case "book-loc": $("#f-building").value = id; location.hash = "book"; renderBuildingSelect(); renderAvail(); break;
+    case "book-day": $("#f-date").value = el.dataset.d; location.hash = "book"; renderAvail(); break;
+    case "cal-loc": S.calLoc = id; location.hash = "calendar"; break;
+    case "cal-prev": case "cal-next": { const [y, m] = S.month.split("-").map(Number); const d = new Date(y, m-1 + (act === "cal-next" ? 1 : -1), 1); S.month = isoDate(d).slice(0,7); renderCalendar(); break; }
+    case "cal-today": S.month = today().slice(0,7); S.calSel = today(); renderCalendar(); break;
+    case "cal-day": S.calSel = el.dataset.d; if (S.calSel.slice(0,7) !== S.month) S.month = S.calSel.slice(0,7); renderCalendar(); $("#calDay").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" }); break;
+    case "cal-open": S.day = el.dataset.d; location.hash = "schedule"; break;
+    case "cancel-mine": {
+      const m = S.mine.find(x => x.id === id); el.disabled = true;
+      try { await call("cancelMine", { id, secret: m && m.secret }); toast("Request cancelled."); await refresh(); }
+      catch(err){ toast(err.message, true); el.disabled = false; }
+      break;
+    }
+    case "reset-demo": await call("resetDemo"); S.mine = []; ls.set("br_mine", []); toast("Demo data reset."); await refresh(); if (S.pin) loadAdmin(); break;
+  }
+});
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === "bookForm"){
+    const p = Object.fromEntries(new FormData(f).entries());
+    const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "Sending…";
+    try {
+      const res = await call("create", p);
+      S.mine.push({ id: res.id, secret: res.secret }); ls.set("br_mine", S.mine);
+      S.me = { name: p.name.trim(), team: p.team }; ls.set("br_me", S.me);
+      $("#f-purpose").value = "";
+      toast("Request sent. You'll see the status under My requests.");
+      await refresh(); location.hash = "mine";
+    } catch(err){ toast(err.message, true); }
+    btn.disabled = false; btn.textContent = "Send request";
+  }
+  if (f.id === "pinForm"){
+    const pin = $("#f-pin").value.trim(); if (!pin) return;
+    try { await call("adminCheck", { pin }); S.pin = pin; ss.set("br_pin", pin); S.adminErr = ""; renderAdmin(); await loadAdmin(); }
+    catch(err){ S.adminErr = err.message; renderAdmin(); }
+  }
+  if (f.id === "bForm"){
+    const name = $("#nb-name").value, group = $("#nb-group").value, capacity = $("#nb-cap").value, notes = $("#nb-notes").value;
+    adminAct(f.querySelector("button[type=submit]"), "addBuilding", { name, group, capacity, notes }, "Location added.");
+  }
+});
+["f-building","f-date","f-start","f-end"].forEach(id => document.getElementById(id).addEventListener("input", () => { if (id === "f-building") renderBuildingSelect(); renderAvail(); }));
+$("#calLoc").addEventListener("change", e => { S.calLoc = e.target.value; renderCalendar(); });
+$("#dayPick").addEventListener("change", e => { if (e.target.value){ S.day = e.target.value; renderSchedule(); } });
+
+function route(){
+  const v = (location.hash || "").slice(1);
+  S.view = ["book","locations","calendar","schedule","mine","admin"].includes(v) ? v : "book";
+  render();
+  if (S.view === "admin" && S.pin && !S.admin) loadAdmin();
+}
+window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+
+/* ---------- start ---------- */
+renderTeamSelect();
+$("#modePill").textContent = LIVE ? "Live" : "Demo";
+$("#modePill").classList.toggle("live", LIVE);
+$("#demoBar").hidden = LIVE;
+$("#f-name").value = S.me.name || "";
+$("#f-team").value = S.me.team || "";
+$("#f-date").min = today();
+$("#f-date").value = addDays(today(), 1);
+$("#f-start").value = "18:00";
+$("#f-end").value = "20:00";
+route();
+refresh().then(() => { if (S.pin) loadAdmin(); });
+if (window.RESERVE_CONFIG && "serviceWorker" in navigator){ try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch(e){} }
+setInterval(() => {
+  const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (document.visibilityState === "visible" && !typing){ refresh(); if (S.pin && S.view === "admin") loadAdmin(); }
+}, 60000);
+})();
+</script>
