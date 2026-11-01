@@ -1,5 +1,7 @@
 # TN-Reservoir
 
+**Live demo:** https://tioluwanimofe.github.io/tn-reservoir-pwa/ (demo mode, admin PIN `1234`)
+
 A small installable web app (PWA) for reserving locations. Teams send a request for a location, date and time, and an admin approves, declines or cancels it. Everything is stored in a Google Sheet through Google Apps Script, so there is no server to run.
 
 ## What it does
@@ -37,7 +39,7 @@ apps-script/
    - Run `setup` once and approve permissions. This creates the `Buildings` and `Bookings` tabs and adds the starting locations.
    - Deploy → New deployment → Web app. Execute as **Me**, access **Anyone**. Copy the `/exec` URL.
 2. **Connect the app:** paste that URL into `API_URL` in `app/config.js`.
-3. **Host it:** drag the `app` folder into [Netlify Drop](https://app.netlify.com/drop), or turn on GitHub Pages for this repo with `/app` as the site.
+3. **Host it:** this repo deploys `app/` to GitHub Pages automatically on every push to `main` (see `.github/workflows/pages.yml`). Turn it on once in Settings → Pages → Source: **GitHub Actions**. Or drag the `app` folder into [Netlify Drop](https://app.netlify.com/drop).
 4. Open it on your phone and choose **Add to Home Screen**.
 
 After changing `Code.gs`: Deploy → Manage deployments → edit → Version: New version → Deploy. The URL stays the same.
