@@ -1,6 +1,6 @@
 # TN-Reservoir
 
-**Live demo:** https://tioluwanimofe.github.io/tn-reservoir-pwa/ (demo mode, admin PIN `1234`)
+**Live demo:** https://tioluwanimofe.github.io/Tn-reservoir-pwa/ (demo mode, admin PIN `1234`)
 
 A small installable web app (PWA) for reserving locations. Teams send a request for a location, date and time, and an admin approves, declines or cancels it. Everything is stored in a Google Sheet through Google Apps Script, so there is no server to run.
 
