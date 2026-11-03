@@ -177,6 +177,20 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .ev.Pending{background:var(--wait-soft);color:var(--wait);border:1px dashed var(--wait)}
 .more{font-size:.68rem;color:var(--muted);font-weight:600}
 @media (max-width:560px){.cal .cell{min-height:64px;padding:3px}.ev{font-size:0;height:5px;padding:0;border-radius:3px}.ev.Pending{border-width:1px}.more{font-size:.62rem}}
+/* repeating */
+.repeat{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0;display:grid;gap:12px;min-width:0}
+.check{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-weight:600;font-size:.92rem;cursor:pointer}
+.check input{width:20px;height:20px;min-height:0;margin:0;accent-color:var(--accent)}
+.lbl{font-weight:600;font-size:.88rem}
+.days{display:flex;flex-wrap:wrap;gap:6px}
+.days label{position:relative;font-weight:600}
+.days input{position:absolute;opacity:0;width:1px;height:1px;min-height:0}
+.days span{display:inline-grid;place-items:center;min-width:50px;height:40px;padding:0 10px;border:1px solid var(--line);border-radius:999px;font-size:.86rem;cursor:pointer;background:var(--surface);color:var(--ink)}
+.days input:checked + span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.days input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.rep{display:inline-flex;align-items:center;gap:4px;font-size:.74rem;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.skipline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.skipline input{flex:0 1 170px;min-height:36px;padding:6px 10px;font-size:.88rem}
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;color:var(--muted);display:grid;gap:10px;justify-items:center}
 
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:10px;font-weight:600;font-size:.9rem;max-width:calc(100% - 32px);z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.18)}
@@ -202,7 +216,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   </div>
 </header>
 <div class="demo" id="demoBar" hidden>
-  <div class="wrap"><span><b>Demo mode.</b> Your five locations with example requests. Data stays in this browser. Admin PIN is <b>1234</b>.</span><button type="button" data-act="reset-demo" data-confirm="Tap again to reset">Reset demo data</button></div>
+  <div class="wrap"><span><b>Demo mode.</b> Your locations with example requests. Data stays in this browser. Admin PIN is <b>1234</b>.</span><button type="button" data-act="reset-demo" data-confirm="Tap again to reset">Reset demo data</button></div>
 </div>
 
 <main class="wrap">
@@ -223,10 +237,25 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <span class="hint" id="b-info"></span>
       </div>
       <div class="row3">
-        <div class="field f-date"><label for="f-date">Date</label><input id="f-date" name="date" type="date" required></div>
+        <div class="field f-date"><label for="f-date" id="dateLbl">Date</label><input id="f-date" name="date" type="date" required></div>
         <div class="field"><label for="f-start">Start</label><input id="f-start" name="start" type="time" step="900" required></div>
         <div class="field"><label for="f-end">End</label><input id="f-end" name="end" type="time" step="900" required></div>
       </div>
+      <fieldset class="repeat" id="repeatBox" hidden>
+        <label class="check"><input type="checkbox" id="f-repeat"> Repeat every week <span class="hint">Center Workers only</span></label>
+        <div id="repeatOpts" hidden style="display:grid;gap:14px">
+          <div class="field"><span class="lbl" id="daysLbl">On these days</span>
+            <div class="days" id="f-days" role="group" aria-labelledby="daysLbl">
+              <label><input type="checkbox" value="0"><span>Sun</span></label><label><input type="checkbox" value="1"><span>Mon</span></label><label><input type="checkbox" value="2"><span>Tue</span></label><label><input type="checkbox" value="3"><span>Wed</span></label><label><input type="checkbox" value="4"><span>Thu</span></label><label><input type="checkbox" value="5"><span>Fri</span></label><label><input type="checkbox" value="6"><span>Sat</span></label>
+            </div>
+          </div>
+          <div class="row2 stack">
+            <div class="field"><label for="f-until-mode">Ends</label><select id="f-until-mode"><option value="">Keeps repeating until stopped</option><option value="date">On a date</option></select></div>
+            <div class="field" id="untilField" hidden><label for="f-until">Last date</label><input type="date" id="f-until"></div>
+          </div>
+          <p class="hint">A repeating booking blocks the location right away on every chosen day. An admin can still cancel a single date or end the repeat.</p>
+        </div>
+      </fieldset>
       <div class="avail" id="avail" aria-live="polite"></div>
       <div class="field"><label for="f-purpose">What is it for? <span class="hint">Optional</span></label><textarea id="f-purpose" name="purpose" maxlength="300" placeholder="e.g. Team meeting, rehearsal, training"></textarea></div>
       <button class="btn wide" type="submit" id="submitBtn">Send request</button>
@@ -301,13 +330,18 @@ const CFG = window.RESERVE_CONFIG || {};
 const LIVE = !!(CFG.API_URL && /^https:\/\//.test(CFG.API_URL));
 const DEMO_PIN = "1234";
 const TEAM_GROUPS = [
+  ["YA Department", ["YA Department"]],
   ["NF", ["NF1","NF2","NF3","NF4"]],
   ["TN", ["TN1","TN2","TN3","TN4"]],
-  ["Center Workers", ["Center Workers 15","Center Workers 17","Center Workers 18","Center Workers 19","Center Workers 20"]],
+  ["Center Workers", ["15.0GI","17GI","18GI","19GI","20GI"]],
   ["MWG", ["MWG"]]
 ];
 const TEAMS = TEAM_GROUPS.flatMap(g => g[1]);
 const OPEN = ["Pending","Approved"];
+const CW = TEAM_GROUPS.find(g => g[0] === "Center Workers")[1];
+const isCW = t => CW.includes(t);
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const HORIZON = 365;
 const DAY_START = 6*60, DAY_END = 23*60;
 
 /* ---------- small helpers ---------- */
@@ -343,6 +377,38 @@ function checkRequest(p, buildings){
   if (p.start >= p.end) throw new Error("The end time needs to be after the start time.");
   return { name, b };
 }
+function parseDays(v){ return [...new Set(String(v ?? "").split(",").filter(x => x !== "").map(Number).filter(n => n >= 0 && n <= 6))].sort(); }
+const daysLabel = v => { const d = parseDays(v); return d.length === 7 ? "day" : d.length === 5 && !d.includes(0) && !d.includes(6) ? "weekday" : d.map(i => DOW[i]).join(", "); };
+function expandSeries(s, from, to){
+  const out = []; if (s.status === "Cancelled") return out;
+  const days = parseDays(s.days), skips = new Set(String(s.skips || "").split(",").filter(Boolean));
+  let d = s.startDate > from ? s.startDate : from;
+  const last = s.endDate && s.endDate < to ? s.endDate : to;
+  while (d <= last){
+    if (days.includes(parseISO(d).getDay()) && !skips.has(d))
+      out.push({ id: s.id + "~" + d, seriesId: s.id, name: s.name, team: s.team, buildingId: s.buildingId, buildingName: s.buildingName, date: d, start: s.start, end: s.end, purpose: s.purpose, status: "Approved", adminNote: "", days: s.days, createdAt: s.createdAt });
+    d = addDays(d, 1);
+  }
+  return out;
+}
+const expandAll = (list, from, to) => list.flatMap(s => expandSeries(s, from, to));
+const seriesActive = s => s.status !== "Cancelled" && (!s.endDate || s.endDate >= today());
+function checkSeries(p, buildings){
+  if (!isCW(p.team)) throw new Error("Only Center Workers teams can make repeating bookings.");
+  const { name, b } = checkRequest({ ...p, date: p.startDate }, buildings);
+  const days = parseDays(p.days);
+  if (!days.length) throw new Error("Pick at least one day for the booking to repeat on.");
+  if (p.endDate){
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.endDate)) throw new Error("Choose a last date, or set it to keep repeating.");
+    if (p.endDate < p.startDate) throw new Error("The last date needs to be on or after the start date.");
+  }
+  return { name, b, days };
+}
+function seriesClash(s, approved){
+  const occ = expandSeries(s, s.startDate, s.endDate || addDays(s.startDate, HORIZON));
+  for (const o of occ){ const c = clash(approved, o, "Approved"); if (c) return { o, c }; }
+  return occ.length ? null : { none: true };
+}
 function clash(list, p, status, excludeId){
   return list.find(r => r.id !== excludeId && r.status === status && r.buildingId === p.buildingId && r.date === p.date && r.start < p.end && p.start < r.end);
 }
@@ -358,32 +424,66 @@ function seed(){
       { id:"b2", name:"Vandy Calhoun", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b3", name:"Vandy Student Center", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b4", name:"Vandy Wilson Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b6", name:"Vandy Peabody", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b7", name:"Vandy Featheringill Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b5", name:"Belmont Barbara Massey", group:"Belmont", capacity:"", notes:"", active:true }
     ],
     bookings: [
       mk("ex1","NF2","b1",t,"18:00","20:00","Team meeting (example)","Approved"),
       mk("ex2","NF1","b1",t,"19:00","21:00","Prayer night (example)","Pending"),
-      mk("ex3","Center Workers 17","b3",t,"13:00","14:30","Training (example)","Pending"),
+      mk("ex3","17GI","b3",t,"13:00","14:30","Training (example)","Pending"),
       mk("ex4","TN1","b2",addDays(t,1),"10:00","12:00","Bible study (example)","Pending"),
       mk("ex6","NF3","b5",addDays(t,4),"17:00","19:00","Outreach prep (example)","Approved"),
-      mk("ex7","Center Workers 19","b4",addDays(t,6),"12:00","13:30","Lunch meeting (example)","Pending"),
+      mk("ex7","19GI","b4",addDays(t,6),"12:00","13:30","Lunch meeting (example)","Pending"),
       mk("ex5","MWG","b1",addDays(t,2),"09:00","11:00","Rehearsal (example)","Approved")
+    ],
+    series: [
+      { id:"exs1", createdAt: now, name:"Sample booker", team:"18GI", buildingId:"b2", buildingName:"", days:"2,4", startDate: t, endDate:"", start:"18:30", end:"20:00", purpose:"Weekly class (example)", status:"Active", adminNote:"", updatedAt: now, skips:"", secret:"demo" }
     ]
   };
 }
 async function demoCall(action, p){
   await new Promise(r => setTimeout(r, 160));
-  if (!mem) mem = ls.get("br_demo_v2", null) || seed();
+  if (!mem) mem = ls.get("br_demo_v5", null) || seed();
   const db = mem, now = new Date().toISOString();
   const pin = () => { if (p.pin !== DEMO_PIN) throw new Error("That PIN is not right. In demo mode it is 1234."); };
   const pub = r => { const { secret, ...x } = r; return x; };
   const findR = () => { const r = db.bookings.find(x => x.id === p.id); if (!r) throw new Error("Request not found."); return r; };
+  db.series = db.series || [];
+  const findS = () => { const x = db.series.find(v => v.id === p.id); if (!x) throw new Error("Repeating booking not found."); return x; };
+  const win = () => [addDays(today(), -30), addDays(today(), HORIZON)];
+  const approvedOn = date => db.bookings.filter(r => r.status === "Approved").concat(expandAll(db.series, date, date));
+  const endSeries = (x, note) => {
+    const y = addDays(today(), -1);
+    if (!seriesActive(x)) throw new Error("This repeating booking has already ended.");
+    if (x.startDate > y) x.status = "Cancelled"; else { x.status = "Ended"; if (!x.endDate || x.endDate > y) x.endDate = y; }
+    x.adminNote = note; x.updatedAt = now;
+  };
   let out;
   switch (action){
-    case "listPublic": out = { buildings: db.buildings.filter(b => b.active), bookings: db.bookings.map(pub) }; break;
+    case "listPublic": { const [f, t2] = win(); out = { buildings: db.buildings.filter(b => b.active), bookings: db.bookings.filter(r => r.date >= f).map(pub).concat(expandAll(db.series, f, t2)), series: db.series.map(pub) }; break; }
+    case "createSeries": {
+      const { name, b, days } = checkSeries(p, db.buildings);
+      const x = { id: "S" + rid(), createdAt: now, name, team: p.team, buildingId: b.id, buildingName: b.name, days: days.join(","), startDate: p.startDate, endDate: p.endDate || "", start: p.start, end: p.end, purpose: String(p.purpose || "").trim().slice(0,300), status: "Active", adminNote: "", updatedAt: now, skips: "", secret: rid()+rid() };
+      const to = x.endDate || addDays(x.startDate, HORIZON);
+      const hit = seriesClash(x, db.bookings.filter(r => r.status === "Approved").concat(expandAll(db.series, x.startDate, to)));
+      if (hit && hit.none) throw new Error("None of the chosen days fall between the start and last date.");
+      if (hit) throw new Error(`${b.name} is already booked on ${fmtDate(hit.o.date)} (${fmtTime(hit.c.start)}–${fmtTime(hit.c.end)}, ${hit.c.team}). Change the days or time.`);
+      db.series.push(x); out = { id: x.id, secret: x.secret }; break;
+    }
+    case "stopSeries": { const x = findS(); if (x.secret !== p.secret) throw new Error("This repeating booking can only be stopped from the device that made it."); endSeries(x, "Stopped by requester"); out = true; break; }
+    case "endSeries": { pin(); endSeries(findS(), p.note || "Ended by admin"); out = true; break; }
+    case "skipDate": {
+      pin(); const x = findS();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "")) throw new Error("Pick the date to cancel.");
+      if (!expandSeries(x, p.date, p.date).length) throw new Error("That date isn't one of this booking's repeat days.");
+      x.skips = [...new Set(String(x.skips || "").split(",").filter(Boolean).concat(p.date))].sort().join(",");
+      if (p.note) x.adminNote = String(p.note).trim().slice(0,300);
+      x.updatedAt = now; out = true; break;
+    }
     case "create": {
       const { name, b } = checkRequest(p, db.buildings);
-      const c = clash(db.bookings, p, "Approved");
+      const c = clash(approvedOn(p.date), p, "Approved");
       if (c) throw new Error(`${b.name} is already booked ${fmtTime(c.start)}–${fmtTime(c.end)} that day. Pick another time.`);
       const r = { id: rid(), createdAt: now, name, team: p.team, buildingId: b.id, buildingName: b.name, date: p.date, start: p.start, end: p.end, purpose: String(p.purpose || "").trim().slice(0,300), status: "Pending", adminNote: "", updatedAt: now, secret: rid()+rid() };
       db.bookings.push(r); out = { id: r.id, secret: r.secret }; break;
@@ -395,11 +495,11 @@ async function demoCall(action, p){
       r.status = "Cancelled"; r.adminNote = "Cancelled by requester"; r.updatedAt = now; out = true; break;
     }
     case "adminCheck": pin(); out = true; break;
-    case "adminList": pin(); out = { buildings: db.buildings, bookings: db.bookings.map(pub) }; break;
+    case "adminList": { pin(); const [f, t2] = win(); out = { buildings: db.buildings, bookings: db.bookings.map(pub).concat(expandAll(db.series, f, t2)), series: db.series.map(pub) }; break; }
     case "setStatus": {
       pin(); const r = findR();
       if (!["Pending","Approved","Declined","Cancelled"].includes(p.status)) throw new Error("Unknown status.");
-      if (p.status === "Approved"){ const c = clash(db.bookings, r, "Approved", r.id); if (c) throw new Error(`This clashes with an approved booking for ${c.team} (${fmtTime(c.start)}–${fmtTime(c.end)}). Cancel that one first, or decline this one.`); }
+      if (p.status === "Approved"){ const c = clash(approvedOn(r.date), r, "Approved", r.id); if (c) throw new Error(`This clashes with an approved booking for ${c.team} (${fmtTime(c.start)}–${fmtTime(c.end)}). Cancel that one first, or decline this one.`); }
       r.status = p.status; if (p.note) r.adminNote = String(p.note).trim().slice(0,300); r.updatedAt = now; out = true; break;
     }
     case "addBuilding": {
@@ -426,7 +526,7 @@ async function demoCall(action, p){
     case "resetDemo": mem = seed(); out = true; break;
     default: throw new Error("Unknown action.");
   }
-  ls.set("br_demo_v2", mem);
+  ls.set("br_demo_v5", mem);
   return JSON.parse(JSON.stringify(out));
 }
 
@@ -445,7 +545,7 @@ const call = (a, p = {}) => LIVE ? remoteCall(a, p) : demoCall(a, p);
 
 /* ---------- state ---------- */
 const S = {
-  view: "book", buildings: [], bookings: [], loaded: false,
+  view: "book", buildings: [], bookings: [], series: [], loaded: false,
   day: today(), month: today().slice(0,7), calSel: today(), calLoc: "",
   mine: ls.get("br_mine", []),
   me: ls.get("br_me", { name: "", team: "" }),
@@ -468,7 +568,7 @@ function toast(msg, err){
 async function refresh(){
   try {
     const d = await call("listPublic");
-    S.buildings = d.buildings; S.bookings = d.bookings; S.loaded = true;
+    S.buildings = d.buildings; S.bookings = d.bookings; S.series = d.series || []; S.loaded = true;
   } catch(e){ toast(e.message, true); }
   render();
 }
@@ -483,7 +583,7 @@ async function loadAdmin(){
 function render(){
   document.querySelectorAll("section[data-view]").forEach(s => s.hidden = s.dataset.view !== S.view);
   document.querySelectorAll("[data-tab]").forEach(a => a.dataset.tab === S.view ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
-  const mineOpen = mineRows().filter(r => OPEN.includes(r.status) && r.date >= today()).length;
+  const mineOpen = mineRows().filter(r => OPEN.includes(r.status) && r.date >= today()).length + mineSeries().filter(seriesActive).length;
   const mb = $("#mineBadge"); mb.hidden = !mineOpen; mb.textContent = mineOpen;
   const pend = S.admin ? S.admin.bookings.filter(r => r.status === "Pending" && r.date >= today()).length : 0;
   const ab = $("#adminBadge"); ab.hidden = !pend; ab.textContent = pend;
@@ -511,7 +611,16 @@ function renderAvail(){
   let html = day.length
     ? `<b>Already on ${esc(fmtDate(date))}</b><ul>${day.map(r => `<li><span class="num">${fmtTime(r.start)}–${fmtTime(r.end)}</span><span class="team">${esc(r.team)}</span><span class="pill s-${r.status}">${r.status === "Pending" ? "Pending" : "Booked"}</span></li>`).join("")}</ul>`
     : `<span>Nothing booked yet for ${esc(fmtDate(date))}.</span>`;
-  if (start && end && start < end){
+  if (repeatOn() && start && end && start < end){
+    const days = selDays(), endDate = $("#f-until-mode").value === "date" ? $("#f-until").value : "";
+    if (!days.length) html += `<div class="note wait">Pick the days this booking repeats on.</div>`;
+    else {
+      const hit = seriesClash({ buildingId: bid, days: days.join(","), startDate: date, endDate, start, end, status: "Active" }, S.bookings.filter(r => r.status === "Approved"));
+      if (hit && hit.none) html += `<div class="note bad">None of the chosen days fall between the start and last date.</div>`;
+      else if (hit) html += `<div class="note bad">Clashes on ${esc(fmtDate(hit.o.date))} with ${esc(hit.c.team)} (${fmtTime(hit.c.start)}–${fmtTime(hit.c.end)}). Change the days or time.</div>`;
+      else html += `<div class="note ok">Every ${esc(daysLabel(days.join(",")))} from ${esc(fmtDate(date))}${endDate ? ` to ${esc(fmtDate(endDate))}` : ""} is free. It will be blocked as soon as you save.</div>`;
+    }
+  } else if (start && end && start < end){
     const p = { buildingId: bid, date, start, end };
     const a = clash(S.bookings, p, "Approved"), w = clash(S.bookings, p, "Pending");
     if (a) html += `<div class="note bad">Your time overlaps an approved booking (${fmtTime(a.start)}–${fmtTime(a.end)}). Pick another time.</div>`;
@@ -519,6 +628,21 @@ function renderAvail(){
     else html += `<div class="note ok">This time is free.</div>`;
   } else if (start && end) html += `<div class="note bad">The end time needs to be after the start time.</div>`;
   box.innerHTML = html;
+}
+
+const repeatOn = () => !$("#repeatBox").hidden && $("#f-repeat").checked;
+const selDays = () => [...document.querySelectorAll("#f-days input:checked")].map(i => Number(i.value));
+function syncRepeat(){
+  const cw = isCW($("#f-team").value);
+  $("#repeatBox").hidden = !cw;
+  if (!cw) $("#f-repeat").checked = false;
+  const on = repeatOn();
+  $("#repeatOpts").hidden = !on;
+  $("#dateLbl").textContent = on ? "Starts on" : "Date";
+  $("#untilField").hidden = $("#f-until-mode").value !== "date";
+  if (on && !selDays().length && $("#f-date").value){ const dow = parseISO($("#f-date").value).getDay(); const box = document.querySelector(`#f-days input[value="${dow}"]`); if (box) box.checked = true; }
+  if (on && $("#f-date").value) $("#f-until").min = $("#f-date").value;
+  $("#submitBtn").textContent = on ? "Save repeating booking" : "Send request";
 }
 
 /* ---------- render: schedule ---------- */
@@ -556,14 +680,16 @@ function card(r, mode){
     else if (r.status === "Approved") actions = `<div class="actions">${note}<button class="btn bad sm" data-act="cancel-booking" data-id="${esc(r.id)}" data-confirm="Tap again to cancel">Cancel booking</button></div>`;
     else if (r.date >= today()) actions = `<div class="actions"><button class="btn ghost sm" data-act="reopen" data-id="${esc(r.id)}">Move back to pending</button></div>`;
   }
-  if (mode === "mine" && OPEN.includes(r.status) && r.date >= today())
+  if (r.seriesId){
+    actions = S.pin && S.admin && r.date >= today() ? `<div class="actions"><button class="btn bad sm" data-act="skip-occ" data-id="${esc(r.seriesId)}" data-d="${esc(r.date)}" data-confirm="Tap again to cancel this date">Cancel this date</button></div>` : "";
+  } else if (mode === "mine" && OPEN.includes(r.status) && r.date >= today())
     actions = `<div class="actions"><button class="btn bad sm" data-act="cancel-mine" data-id="${esc(r.id)}" data-confirm="Tap again to cancel">Cancel request</button></div>`;
   return `<article class="req">
     <div class="req-top">
       <div><div class="when">${esc(fmtDate(r.date))} · ${fmtTime(r.start)}–${fmtTime(r.end)}</div><div class="muted small">${esc(bName(r))}</div></div>
-      <span class="pill s-${esc(r.status)}">${r.status === "Pending" ? "Waiting" : esc(r.status)}</span>
+      <span class="pill s-${esc(r.status)}">${r.status === "Pending" ? "Waiting" : r.seriesId ? "Blocked" : esc(r.status)}</span>
     </div>
-    <div class="who"><b>${esc(r.name)}</b> <span class="team">${esc(r.team)}</span></div>
+    <div class="who"><b>${esc(r.name)}</b> <span class="team">${esc(r.team)}</span>${r.seriesId ? ` <span class="rep">↻ Every ${esc(daysLabel(r.days))}</span>` : ""}</div>
     ${r.purpose ? `<div class="purpose">${esc(r.purpose)}</div>` : ""}
     ${r.adminNote ? `<div class="adminnote">${esc(r.adminNote)}</div>` : ""}
     ${flags}${actions}
@@ -626,11 +752,36 @@ function renderCalendar(){
     (dayRows.length ? dayRows.map(r => card(r, "day")).join("") : `<div class="empty"><span>Nothing booked on this day.</span>${S.calSel >= t ? `<button class="btn sm" data-act="book-day" data-d="${S.calSel}">Request a location for this day</button>` : ""}</div>`);
 }
 
+/* ---------- render: repeating ---------- */
+function seriesCard(x, mode){
+  const active = seriesActive(x), t = today();
+  const next = active ? expandSeries(x, t > x.startDate ? t : x.startDate, addDays(t, 120))[0] : null;
+  const skips = String(x.skips || "").split(",").filter(d => d && d >= t);
+  let actions = "";
+  if (active && mode === "mine") actions = `<div class="actions"><button class="btn bad sm" data-act="stop-series" data-id="${esc(x.id)}" data-confirm="Tap again to stop repeating">Stop repeating</button></div>`;
+  if (active && mode === "admin") actions = `
+    <div class="skipline"><input type="date" id="skip-${esc(x.id)}" min="${t}" aria-label="Date to cancel"${next ? ` value="${esc(next.date)}"` : ""}><button class="btn ghost sm" data-act="skip-date" data-id="${esc(x.id)}">Cancel that date</button></div>
+    <div class="actions"><input id="note-${esc(x.id)}" placeholder="Note to requester (optional)" maxlength="300" aria-label="Note to requester"><button class="btn bad sm" data-act="end-series" data-id="${esc(x.id)}" data-confirm="Tap again to end the repeat">End repeat</button></div>`;
+  return `<article class="req">
+    <div class="req-top">
+      <div><div class="when">Every ${esc(daysLabel(x.days))} · ${fmtTime(x.start)}–${fmtTime(x.end)}</div><div class="muted small">${esc(bName(x))} · from ${esc(fmtDate(x.startDate))}${x.endDate ? ` to ${esc(fmtDate(x.endDate))}` : ", no end date"}</div></div>
+      <span class="pill ${active ? "s-Approved" : "s-Cancelled"}">${active ? "Repeating" : x.status === "Cancelled" ? "Cancelled" : "Ended"}</span>
+    </div>
+    <div class="who"><b>${esc(x.name)}</b> <span class="team">${esc(x.team)}</span>${next ? ` <span class="muted small">Next: ${esc(fmtDate(next.date))}</span>` : ""}</div>
+    ${x.purpose ? `<div class="purpose">${esc(x.purpose)}</div>` : ""}
+    ${skips.length ? `<div class="muted small">Cancelled dates: ${skips.map(d => esc(fmtDate(d))).join(", ")}</div>` : ""}
+    ${x.adminNote ? `<div class="adminnote">${esc(x.adminNote)}</div>` : ""}
+    ${actions}
+  </article>`;
+}
+
 /* ---------- render: mine ---------- */
-function mineRows(){ const ids = new Set(S.mine.map(m => m.id)); return S.bookings.filter(r => ids.has(r.id)); }
+function mineRows(){ const ids = new Set(S.mine.map(m => m.id)); return S.bookings.filter(r => ids.has(r.id) && !r.seriesId); }
+function mineSeries(){ const ids = new Set(S.mine.map(m => m.id)); return S.series.filter(x => ids.has(x.id)); }
 function renderMine(){
   const rows = mineRows().sort((a, b) => (b.date >= today()) - (a.date >= today()) || byWhen(a, b));
-  $("#mineList").innerHTML = rows.length ? rows.map(r => card(r, "mine")).join("")
+  const reps = mineSeries().sort((a, b) => seriesActive(b) - seriesActive(a));
+  $("#mineList").innerHTML = (rows.length || reps.length) ? reps.map(x => seriesCard(x, "mine")).join("") + rows.map(r => card(r, "mine")).join("")
     : `<div class="empty"><span>Requests you send from this device show up here.</span><a class="btn sm" href="#book">Request a location</a></div>`;
 }
 
@@ -647,19 +798,20 @@ function renderAdmin(){
     return;
   }
   if (!S.admin){ root.innerHTML = `<div class="head"><h1>Admin</h1><p class="muted">${S.adminErr ? esc(S.adminErr) : "Loading requests…"}</p></div>`; return; }
-  const all = S.admin.bookings, t = today();
+  const all = S.admin.bookings.filter(r => !r.seriesId), t = today();
+  const reps = (S.admin.series || []).slice().sort((a, b) => seriesActive(b) - seriesActive(a) || b.createdAt.localeCompare(a.createdAt));
   const pending = all.filter(r => r.status === "Pending" && r.date >= t);
   const upcoming = all.filter(r => r.status === "Approved" && r.date >= t);
   const closed = all.filter(r => !OPEN.includes(r.status) || r.date < t);
-  const sets = { Pending: pending.sort(byWhen), Approved: upcoming.sort(byWhen), Closed: closed.sort((a,b) => byWhen(b,a)), All: all.slice().sort((a,b) => byWhen(b,a)) };
-  const labels = { Pending: "Waiting", Approved: "Approved, upcoming", Closed: "Past and closed", All: "All" };
+  const sets = { Pending: pending.sort(byWhen), Approved: upcoming.sort(byWhen), Repeating: reps, Closed: closed.sort((a,b) => byWhen(b,a)), All: all.slice().sort((a,b) => byWhen(b,a)) };
+  const labels = { Pending: "Waiting", Approved: "Approved, upcoming", Repeating: "Repeating", Closed: "Past and closed", All: "All" };
   const rows = sets[S.filter];
   const blds = S.admin.buildings;
   root.innerHTML = `
     <div class="sectionhead"><h1>Admin</h1><button class="btn ghost sm" data-act="lock">Lock</button></div>
-    <div class="stats"><span><b>${pending.length}</b>waiting</span><span><b>${upcoming.length}</b>approved, upcoming</span><span><b>${blds.filter(b => b.active).length}</b>locations open</span></div>
+    <div class="stats"><span><b>${pending.length}</b>waiting</span><span><b>${upcoming.length}</b>approved, upcoming</span><span><b>${reps.filter(seriesActive).length}</b>repeating</span><span><b>${blds.filter(b => b.active).length}</b>locations open</span></div>
     <div class="chips" role="group" aria-label="Filter requests">${Object.keys(sets).map(k => `<button class="chip" data-act="filter" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]} · ${sets[k].length}</button>`).join("")}</div>
-    <div class="list">${rows.length ? rows.map(r => card(r, "admin")).join("") : `<div class="empty">${S.filter === "Pending" ? "No requests waiting. You're all caught up." : "Nothing here."}</div>`}</div>
+    <div class="list">${rows.length ? rows.map(r => S.filter === "Repeating" ? seriesCard(r, "admin") : card(r, "admin")).join("") : `<div class="empty">${S.filter === "Pending" ? "No requests waiting. You're all caught up." : "Nothing here."}</div>`}</div>
     <div class="panel">
       <div class="head"><h2>Locations available</h2><p class="muted small">Only open locations show up for people booking. Hide a location to stop new requests without losing its history.</p></div>
       <div>${blds.length ? groupsOf(blds).map(([g, items]) => `<div class="grouphead" style="margin-top:10px"><h3>${esc(g)}</h3></div>` + items.map(b => `<div class="bldg ${b.active ? "" : "hiddenb"}"><div class="info"><b>${esc(b.name)}</b><div class="muted small">${[b.capacity ? `Holds ${esc(b.capacity)}` : "", esc(b.notes)].filter(Boolean).join(" · ") || "No details"}${b.active ? "" : " · Hidden"}</div></div>
@@ -673,7 +825,6 @@ function renderAdmin(){
         </div>
         <div class="row2 stack">
           <div class="field"><label for="nb-cap">Capacity <span class="hint">Optional</span></label><input id="nb-cap" type="number" min="1" inputmode="numeric" placeholder="e.g. 120"></div>
-        </div>
         <div class="field"><label for="nb-notes">Notes <span class="hint">Optional</span></label><input id="nb-notes" maxlength="200" placeholder="e.g. Room 120, projector"></div>
         </div>
         <button class="btn" type="submit">Add location</button>
@@ -715,6 +866,15 @@ document.addEventListener("click", async e => {
     case "cal-today": S.month = today().slice(0,7); S.calSel = today(); renderCalendar(); break;
     case "cal-day": S.calSel = el.dataset.d; if (S.calSel.slice(0,7) !== S.month) S.month = S.calSel.slice(0,7); renderCalendar(); $("#calDay").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" }); break;
     case "cal-open": S.day = el.dataset.d; location.hash = "schedule"; break;
+    case "skip-date": { const d = ($("#skip-" + id) || {}).value; if (!d){ toast("Pick the date to cancel.", true); break; } adminAct(el, "skipDate", { id, date: d, note: note() }, `${fmtDate(d)} cancelled. The rest of the repeat stays.`); break; }
+    case "skip-occ": adminAct(el, "skipDate", { id, date: el.dataset.d }, `${fmtDate(el.dataset.d)} cancelled. The rest of the repeat stays.`); break;
+    case "end-series": adminAct(el, "endSeries", { id, note: note() }, "Repeat ended. Past dates stay on record."); break;
+    case "stop-series": {
+      const m = S.mine.find(x => x.id === id); el.disabled = true;
+      try { await call("stopSeries", { id, secret: m && m.secret }); toast("Stopped. The location is free again on those days."); await refresh(); }
+      catch(err){ toast(err.message, true); el.disabled = false; }
+      break;
+    }
     case "cancel-mine": {
       const m = S.mine.find(x => x.id === id); el.disabled = true;
       try { await call("cancelMine", { id, secret: m && m.secret }); toast("Request cancelled."); await refresh(); }
@@ -730,15 +890,19 @@ document.addEventListener("submit", async e => {
   if (f.id === "bookForm"){
     const p = Object.fromEntries(new FormData(f).entries());
     const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "Sending…";
+    const rep = repeatOn();
     try {
-      const res = await call("create", p);
+      const res = rep
+        ? await call("createSeries", { name: p.name, team: p.team, buildingId: p.buildingId, startDate: p.date, start: p.start, end: p.end, purpose: p.purpose, days: selDays().join(","), endDate: $("#f-until-mode").value === "date" ? $("#f-until").value : "" })
+        : await call("create", p);
       S.mine.push({ id: res.id, secret: res.secret }); ls.set("br_mine", S.mine);
       S.me = { name: p.name.trim(), team: p.team }; ls.set("br_me", S.me);
       $("#f-purpose").value = "";
-      toast("Request sent. You'll see the status under My requests.");
+      if (rep){ $("#f-repeat").checked = false; document.querySelectorAll("#f-days input").forEach(i => i.checked = false); syncRepeat(); }
+      toast(rep ? "Repeating booking saved. The location is blocked on those days." : "Request sent. You'll see the status under My requests.");
       await refresh(); location.hash = "mine";
     } catch(err){ toast(err.message, true); }
-    btn.disabled = false; btn.textContent = "Send request";
+    btn.disabled = false; syncRepeat();
   }
   if (f.id === "pinForm"){
     const pin = $("#f-pin").value.trim(); if (!pin) return;
@@ -750,6 +914,8 @@ document.addEventListener("submit", async e => {
     adminAct(f.querySelector("button[type=submit]"), "addBuilding", { name, group, capacity, notes }, "Location added.");
   }
 });
+["f-team","f-repeat","f-until-mode","f-until"].forEach(id => document.getElementById(id).addEventListener(id === "f-until" ? "input" : "change", () => { syncRepeat(); renderAvail(); }));
+document.querySelectorAll("#f-days input").forEach(i => i.addEventListener("change", renderAvail));
 ["f-building","f-date","f-start","f-end"].forEach(id => document.getElementById(id).addEventListener("input", () => { if (id === "f-building") renderBuildingSelect(); renderAvail(); }));
 $("#calLoc").addEventListener("change", e => { S.calLoc = e.target.value; renderCalendar(); });
 $("#dayPick").addEventListener("change", e => { if (e.target.value){ S.day = e.target.value; renderSchedule(); } });
@@ -773,6 +939,7 @@ $("#f-date").min = today();
 $("#f-date").value = addDays(today(), 1);
 $("#f-start").value = "18:00";
 $("#f-end").value = "20:00";
+syncRepeat();
 route();
 refresh().then(() => { if (S.pin) loadAdmin(); });
 if (window.RESERVE_CONFIG && "serviceWorker" in navigator){ try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch(e){} }
@@ -782,3 +949,4 @@ setInterval(() => {
 }, 60000);
 })();
 </script>
+

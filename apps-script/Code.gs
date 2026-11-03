@@ -24,6 +24,7 @@ const ADMIN_PIN = 'change-me';
 const SHEET_ID = '1lC11JRkFHdwg7ahJGhX-ocjQMc6s5OnZ8awk7SGRRkY';
 
 const TEAMS = [
+  'YA Department',
   'NF1', 'NF2', 'NF3', 'NF4',
   'TN1', 'TN2', 'TN3', 'TN4',
   '15.0GI', '17GI', '18GI', '19GI', '20GI', // Center Workers
@@ -32,6 +33,10 @@ const TEAMS = [
 
 const SHEET_BUILDINGS = 'Buildings';
 const SHEET_BOOKINGS = 'Bookings';
+const SHEET_SERIES = 'Series';
+const CENTER_WORKERS = ['15.0GI', '17GI', '18GI', '19GI', '20GI'];
+const HORIZON_DAYS = 365; // how far ahead repeating bookings are shown and checked
+const S_COLS = ['id', 'createdAt', 'name', 'team', 'buildingId', 'buildingName', 'days', 'startDate', 'endDate', 'start', 'end', 'purpose', 'status', 'adminNote', 'updatedAt', 'skips', 'secret'];
 const B_COLS = ['id', 'name', 'capacity', 'notes', 'active', 'createdAt', 'group'];
 
 // Added automatically the first time you run setup().
@@ -53,6 +58,7 @@ function setup() {
   const ss = ss_();
   ensureSheet_(ss, SHEET_BUILDINGS, B_COLS);
   ensureSheet_(ss, SHEET_BOOKINGS, R_COLS);
+  ensureSheet_(ss, SHEET_SERIES, S_COLS);
   if (readAll_(SHEET_BUILDINGS).length === 0) {
     STARTING_LOCATIONS.forEach(l => addBuilding_({ name: l[0], group: l[1] }));
   }
@@ -89,7 +95,11 @@ function route_(action, p) {
     case 'create':         return locked_(() => createBooking_(p));
     case 'cancelMine':     return locked_(() => cancelMine_(p));
     case 'adminCheck':     requirePin_(p); return true;
-    case 'adminList':      requirePin_(p); return { buildings: readAll_(SHEET_BUILDINGS), bookings: readAll_(SHEET_BOOKINGS).map(publicBooking_) };
+    case 'adminList':      requirePin_(p); return adminList_();
+    case 'createSeries':   return locked_(() => createSeries_(p));
+    case 'stopSeries':     return locked_(() => stopSeries_(p));
+    case 'skipDate':       requirePin_(p); return locked_(() => skipDate_(p));
+    case 'endSeries':      requirePin_(p); return locked_(() => endSeriesAdmin_(p));
     case 'setStatus':      requirePin_(p); return locked_(() => setStatus_(p));
     case 'addBuilding':    requirePin_(p); return locked_(() => addBuilding_(p));
     case 'updateBuilding': requirePin_(p); return locked_(() => updateBuilding_(p));
@@ -100,15 +110,31 @@ function route_(action, p) {
 
 /* ---------- public ---------- */
 function listPublic_() {
-  const cutoff = addDays_(today_(), -30);
+  const from = isoAdd_(today_(), -30), to = isoAdd_(today_(), HORIZON_DAYS);
+  const series = readAll_(SHEET_SERIES);
   return {
     buildings: readAll_(SHEET_BUILDINGS).filter(b => b.active),
-    bookings: readAll_(SHEET_BOOKINGS).filter(r => r.date >= cutoff).map(publicBooking_)
+    bookings: readAll_(SHEET_BOOKINGS).filter(r => r.date >= from).map(publicBooking_).concat(expandAll_(series, from, to)),
+    series: series.map(publicBooking_)
   };
 }
 
-function createBooking_(p) {
-  const buildings = readAll_(SHEET_BUILDINGS);
+function adminList_() {
+  const from = isoAdd_(today_(), -30), to = isoAdd_(today_(), HORIZON_DAYS);
+  const series = readAll_(SHEET_SERIES);
+  return {
+    buildings: readAll_(SHEET_BUILDINGS),
+    bookings: readAll_(SHEET_BOOKINGS).map(publicBooking_).concat(expandAll_(series, from, to)),
+    series: series.map(publicBooking_)
+  };
+}
+
+// Approved one-off bookings plus every repeating booking that falls on this date.
+function approvedOn_(date) {
+  return readAll_(SHEET_BOOKINGS).filter(r => r.status === 'Approved').concat(expandAll_(readAll_(SHEET_SERIES), date, date));
+}
+
+function validateRequest_(p, buildings) {
   const name = String(p.name || '').trim();
   if (!name) throw new Error('Enter your name.');
   if (name.length > 80) throw new Error('Keep the name under 80 characters.');
@@ -119,8 +145,14 @@ function createBooking_(p) {
   if (p.date < today_()) throw new Error('That date has already passed.');
   if (!/^\d{2}:\d{2}$/.test(p.start || '') || !/^\d{2}:\d{2}$/.test(p.end || '')) throw new Error('Choose a start and end time.');
   if (p.start >= p.end) throw new Error('The end time needs to be after the start time.');
+  return { name: name, b: b };
+}
 
-  const c = clash_(readAll_(SHEET_BOOKINGS), p, 'Approved');
+function createBooking_(p) {
+  const v = validateRequest_(p, readAll_(SHEET_BUILDINGS));
+  const name = v.name, b = v.b;
+
+  const c = clash_(approvedOn_(p.date), p, 'Approved');
   if (c) throw new Error(b.name + ' is already booked ' + c.start + '–' + c.end + ' that day. Pick another time.');
 
   const now = new Date().toISOString();
@@ -143,6 +175,106 @@ function cancelMine_(p) {
   return true;
 }
 
+/* ---------- repeating bookings (Center Workers) ---------- */
+function parseDays_(v) {
+  const seen = {};
+  String(v === undefined || v === null ? '' : v).split(',').forEach(x => { const n = Number(x); if (x !== '' && n >= 0 && n <= 6) seen[n] = true; });
+  return Object.keys(seen).map(Number).sort();
+}
+
+function expandSeries_(s, from, to) {
+  const out = [];
+  if (s.status === 'Cancelled') return out;
+  const days = parseDays_(s.days);
+  const skips = {};
+  String(s.skips || '').split(',').forEach(d => { if (d) skips[d] = true; });
+  let d = s.startDate > from ? s.startDate : from;
+  const last = s.endDate && s.endDate < to ? s.endDate : to;
+  while (d <= last) {
+    if (days.indexOf(dow_(d)) !== -1 && !skips[d]) {
+      out.push({ id: s.id + '~' + d, seriesId: s.id, name: s.name, team: s.team, buildingId: s.buildingId, buildingName: s.buildingName,
+        date: d, start: s.start, end: s.end, purpose: s.purpose, status: 'Approved', adminNote: '', days: s.days, createdAt: s.createdAt });
+    }
+    d = isoAdd_(d, 1);
+  }
+  return out;
+}
+
+function expandAll_(list, from, to) {
+  return list.reduce((acc, s) => acc.concat(expandSeries_(s, from, to)), []);
+}
+
+function seriesActive_(s) {
+  return s.status !== 'Cancelled' && (!s.endDate || s.endDate >= today_());
+}
+
+function createSeries_(p) {
+  if (CENTER_WORKERS.indexOf(p.team) === -1) throw new Error('Only Center Workers teams can make repeating bookings.');
+  const v = validateRequest_(Object.assign({}, p, { date: p.startDate }), readAll_(SHEET_BUILDINGS));
+  const days = parseDays_(p.days);
+  if (!days.length) throw new Error('Pick at least one day for the booking to repeat on.');
+  const endDate = String(p.endDate || '');
+  if (endDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) throw new Error('Choose a last date, or set it to keep repeating.');
+    if (endDate < p.startDate) throw new Error('The last date needs to be on or after the start date.');
+  }
+  const now = new Date().toISOString();
+  const s = {
+    id: 'S' + Utilities.getUuid().slice(0, 7), createdAt: now, name: v.name, team: p.team,
+    buildingId: v.b.id, buildingName: v.b.name, days: days.join(','), startDate: p.startDate, endDate: endDate,
+    start: p.start, end: p.end, purpose: String(p.purpose || '').trim().slice(0, 300),
+    status: 'Active', adminNote: '', updatedAt: now, skips: '', secret: Utilities.getUuid()
+  };
+  const to = endDate || isoAdd_(p.startDate, HORIZON_DAYS);
+  const occ = expandSeries_(s, p.startDate, to);
+  if (!occ.length) throw new Error('None of the chosen days fall between the start and last date.');
+  const approved = readAll_(SHEET_BOOKINGS).filter(r => r.status === 'Approved').concat(expandAll_(readAll_(SHEET_SERIES), p.startDate, to));
+  for (let i = 0; i < occ.length; i++) {
+    const c = clash_(approved, occ[i], 'Approved');
+    if (c) throw new Error(v.b.name + ' is already booked on ' + occ[i].date + ' (' + c.start + '–' + c.end + ', ' + c.team + '). Change the days or time.');
+  }
+  appendRow_(SHEET_SERIES, S_COLS, s);
+  return { id: s.id, secret: s.secret };
+}
+
+function findSeries_(id) {
+  const s = readAll_(SHEET_SERIES).find(x => x.id === id);
+  if (!s) throw new Error('Repeating booking not found.');
+  return s;
+}
+
+function endSeries_(s, note) {
+  if (!seriesActive_(s)) throw new Error('This repeating booking has already ended.');
+  const y = isoAdd_(today_(), -1);
+  const ch = { adminNote: note, updatedAt: new Date().toISOString() };
+  if (s.startDate > y) ch.status = 'Cancelled';
+  else { ch.status = 'Ended'; if (!s.endDate || s.endDate > y) ch.endDate = y; }
+  updateRow_(SHEET_SERIES, S_COLS, s.id, ch);
+  return true;
+}
+
+function stopSeries_(p) {
+  const s = findSeries_(p.id);
+  if (!p.secret || s.secret !== p.secret) throw new Error('This repeating booking can only be stopped from the device that made it.');
+  return endSeries_(s, 'Stopped by requester');
+}
+
+function endSeriesAdmin_(p) {
+  return endSeries_(findSeries_(p.id), String(p.note || '').trim().slice(0, 300) || 'Ended by admin');
+}
+
+function skipDate_(p) {
+  const s = findSeries_(p.id);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || '')) throw new Error('Pick the date to cancel.');
+  if (!expandSeries_(s, p.date, p.date).length) throw new Error("That date isn't one of this booking's repeat days.");
+  const skips = String(s.skips || '').split(',').filter(Boolean);
+  if (skips.indexOf(p.date) === -1) skips.push(p.date);
+  const ch = { skips: skips.sort().join(','), updatedAt: new Date().toISOString() };
+  if (p.note) ch.adminNote = String(p.note).trim().slice(0, 300);
+  updateRow_(SHEET_SERIES, S_COLS, s.id, ch);
+  return true;
+}
+
 /* ---------- admin ---------- */
 function requirePin_(p) {
   if (String(p.pin || '') !== String(ADMIN_PIN)) throw new Error('That PIN is not right.');
@@ -154,7 +286,7 @@ function setStatus_(p) {
   const r = all.find(x => x.id === p.id);
   if (!r) throw new Error('Request not found.');
   if (p.status === 'Approved') {
-    const c = clash_(all, r, 'Approved', r.id);
+    const c = clash_(approvedOn_(r.date), r, 'Approved', r.id);
     if (c) throw new Error('This clashes with an approved booking for ' + c.team + ' (' + c.start + '–' + c.end + '). Cancel that one first, or decline this one.');
   }
   const changes = { status: p.status, updatedAt: new Date().toISOString() };
@@ -215,9 +347,20 @@ function publicBooking_(r) {
 }
 
 function sheet_(name) {
-  const sh = ss_().getSheetByName(name);
+  let sh = ss_().getSheetByName(name);
+  if (!sh && name === SHEET_SERIES) { ensureSheet_(ss_(), SHEET_SERIES, S_COLS); sh = ss_().getSheetByName(name); }
   if (!sh) throw new Error('The "' + name + '" tab is missing. Run setup() in Apps Script first.');
   return sh;
+}
+
+// Pure date math on yyyy-MM-dd strings (no time zone involved).
+function isoAdd_(iso, n) {
+  const p = iso.split('-').map(Number);
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+}
+function dow_(iso) {
+  const p = iso.split('-').map(Number);
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
 }
 
 function tz_() { return ss_().getSpreadsheetTimeZone(); }
@@ -231,10 +374,11 @@ function addDays_(iso, n) {
 function normalize_(col, v) {
   const tz = tz_();
   if (v instanceof Date) {
-    if (col === 'date') return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+    if (col === 'date' || col === 'startDate' || col === 'endDate') return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
     if (col === 'start' || col === 'end') return Utilities.formatDate(v, tz, 'HH:mm');
     return v.toISOString();
   }
+  if (col === 'days' && typeof v === 'number') return String(v);
   if (col === 'active') return v === true || String(v).toUpperCase() === 'TRUE';
   if (col === 'capacity') return v === '' || v === null ? '' : Number(v);
   if ((col === 'start' || col === 'end') && /^\d:\d{2}$/.test(String(v))) return '0' + v;

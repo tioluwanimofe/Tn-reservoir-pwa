@@ -10,10 +10,11 @@ A small installable web app (PWA) for reserving locations. Teams send a request 
 - **Locations:** every location, grouped by campus, with whether it's free right now and what's coming up.
 - **Calendar:** a month view of all bookings, filterable by location.
 - **Day view:** a timeline of every location for one day.
+- **Repeating bookings (Center Workers only):** pick the weekdays and an optional last date. The location is blocked right away on every matching day (checked a year ahead for clashes). Admins can cancel a single date or end the repeat; the requester can stop it from their device.
 - **My requests:** requests sent from this device, with their status. People can cancel their own requests without an account.
 - **Admin:** behind a PIN. Approve, decline or cancel requests (with a note), and add, hide or delete locations. It won't let two approved bookings overlap.
 
-Teams: NF1–NF4, TN1–TN4, Center Workers (15.0GI, 17GI, 18GI, 19GI, 20GI), MWG.
+Teams: YA Department, NF1–NF4, TN1–TN4, Center Workers (15.0GI, 17GI, 18GI, 19GI, 20GI), MWG.
 Starting locations: Vandy Buttrick Hall, Vandy Calhoun, Vandy Student Center, Vandy Wilson Hall, Vandy Peabody, Vandy Featheringill Hall (Vanderbilt) and Belmont Barbara Massey (Belmont).
 
 If `API_URL` in `app/config.js` is empty, the app runs in **demo mode** instead: example data kept in the browser, admin PIN `1234`.
@@ -28,7 +29,7 @@ app/            The PWA. Deploy this folder.
   manifest.webmanifest, icons
   demo-body.html  Same app without the <head> wrapper (used for the hosted demo)
 apps-script/
-  Code.gs       Google Apps Script backend
+  Code.gs       Google Apps Script backend (tabs: Buildings, Bookings, Series)
 ```
 
 ## Setup
