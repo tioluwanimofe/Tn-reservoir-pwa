@@ -2,7 +2,7 @@
  * TN-Reservoir — Google Apps Script backend
  *
  * SETUP
- * 1. Create a new Google Sheet (name it e.g. "TN-Reservoir").
+ * 1. Open the TN-Reservoir Google Sheet (SHEET_ID below).
  * 2. Extensions > Apps Script. Delete what's there and paste this whole file.
  * 3. Change ADMIN_PIN below to your own PIN.
  * 4. Pick the "setup" function in the toolbar and click Run. Approve the permissions.
@@ -18,6 +18,10 @@
  */
 
 const ADMIN_PIN = 'change-me';
+
+// Your TN-Reservoir Google Sheet. The script always saves here, even if it's
+// pasted into a standalone Apps Script project instead of the Sheet itself.
+const SHEET_ID = '1lC11JRkFHdwg7ahJGhX-ocjQMc6s5OnZ8awk7SGRRkY';
 
 const TEAMS = [
   'NF1', 'NF2', 'NF3', 'NF4',
@@ -44,7 +48,7 @@ const OPEN = ['Pending', 'Approved'];
 
 /* ---------- one-time setup ---------- */
 function setup() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = ss_();
   ensureSheet_(ss, SHEET_BUILDINGS, B_COLS);
   ensureSheet_(ss, SHEET_BOOKINGS, R_COLS);
   if (readAll_(SHEET_BUILDINGS).length === 0) {
@@ -194,6 +198,9 @@ function deleteBuilding_(p) {
 }
 
 /* ---------- helpers ---------- */
+let ssCache_ = null;
+function ss_() { return ssCache_ || (ssCache_ = SpreadsheetApp.openById(SHEET_ID)); }
+
 function clash_(list, p, status, excludeId) {
   return list.find(r => r.id !== excludeId && r.status === status && r.buildingId === p.buildingId &&
     r.date === p.date && r.start < p.end && p.start < r.end);
@@ -206,12 +213,12 @@ function publicBooking_(r) {
 }
 
 function sheet_(name) {
-  const sh = SpreadsheetApp.getActive().getSheetByName(name);
+  const sh = ss_().getSheetByName(name);
   if (!sh) throw new Error('The "' + name + '" tab is missing. Run setup() in Apps Script first.');
   return sh;
 }
 
-function tz_() { return SpreadsheetApp.getActive().getSpreadsheetTimeZone(); }
+function tz_() { return ss_().getSpreadsheetTimeZone(); }
 function today_() { return Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd'); }
 function addDays_(iso, n) {
   const parts = iso.split('-').map(Number);
