@@ -1,0 +1,38 @@
+# Netlify: serve the PWA from the app/ folder. No build step needed.
+[build]
+  publish = "app"
+  command = ""
+
+# Always fetch the newest service worker and config so updates show up right away.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# The demo body file isn't part of the live site.
+[[redirects]]
+  from = "/demo-body.html"
+  to = "/"
+  status = 301
