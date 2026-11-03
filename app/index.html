@@ -318,7 +318,7 @@ const DEMO_PIN = "1234";
 const TEAM_GROUPS = [
   ["NF", ["NF1","NF2","NF3","NF4"]],
   ["TN", ["TN1","TN2","TN3","TN4"]],
-  ["Center Workers", ["Center Workers 15","Center Workers 17","Center Workers 18","Center Workers 19","Center Workers 20"]],
+  ["Center Workers", ["15.0GI","17GI","18GI","19GI","20GI"]],
   ["MWG", ["MWG"]]
 ];
 const TEAMS = TEAM_GROUPS.flatMap(g => g[1]);
@@ -380,17 +380,17 @@ function seed(){
     bookings: [
       mk("ex1","NF2","b1",t,"18:00","20:00","Team meeting (example)","Approved"),
       mk("ex2","NF1","b1",t,"19:00","21:00","Prayer night (example)","Pending"),
-      mk("ex3","Center Workers 17","b3",t,"13:00","14:30","Training (example)","Pending"),
+      mk("ex3","17GI","b3",t,"13:00","14:30","Training (example)","Pending"),
       mk("ex4","TN1","b2",addDays(t,1),"10:00","12:00","Bible study (example)","Pending"),
       mk("ex6","NF3","b5",addDays(t,4),"17:00","19:00","Outreach prep (example)","Approved"),
-      mk("ex7","Center Workers 19","b4",addDays(t,6),"12:00","13:30","Lunch meeting (example)","Pending"),
+      mk("ex7","19GI","b4",addDays(t,6),"12:00","13:30","Lunch meeting (example)","Pending"),
       mk("ex5","MWG","b1",addDays(t,2),"09:00","11:00","Rehearsal (example)","Approved")
     ]
   };
 }
 async function demoCall(action, p){
   await new Promise(r => setTimeout(r, 160));
-  if (!mem) mem = ls.get("br_demo_v3", null) || seed();
+  if (!mem) mem = ls.get("br_demo_v4", null) || seed();
   const db = mem, now = new Date().toISOString();
   const pin = () => { if (p.pin !== DEMO_PIN) throw new Error("That PIN is not right. In demo mode it is 1234."); };
   const pub = r => { const { secret, ...x } = r; return x; };
@@ -443,7 +443,7 @@ async function demoCall(action, p){
     case "resetDemo": mem = seed(); out = true; break;
     default: throw new Error("Unknown action.");
   }
-  ls.set("br_demo_v3", mem);
+  ls.set("br_demo_v4", mem);
   return JSON.parse(JSON.stringify(out));
 }
 

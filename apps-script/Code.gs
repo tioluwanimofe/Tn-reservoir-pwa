@@ -26,7 +26,7 @@ const SHEET_ID = '1lC11JRkFHdwg7ahJGhX-ocjQMc6s5OnZ8awk7SGRRkY';
 const TEAMS = [
   'NF1', 'NF2', 'NF3', 'NF4',
   'TN1', 'TN2', 'TN3', 'TN4',
-  'Center Workers 15', 'Center Workers 17', 'Center Workers 18', 'Center Workers 19', 'Center Workers 20',
+  '15.0GI', '17GI', '18GI', '19GI', '20GI', // Center Workers
   'MWG'
 ];
 
