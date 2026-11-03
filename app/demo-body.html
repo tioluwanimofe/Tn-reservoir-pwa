@@ -24,6 +24,23 @@
   --ok:#62C28E; --ok-soft:#173326; --wait:#E3A746; --wait-soft:#3A2B12; --bad:#E57E7B; --bad-soft:#3D1D1D; --off:#9AA2AE; --off-soft:#232B36;
   color-scheme:dark }
 
+/* Light-bulb themes: chosen in the header, saved per device. They override the default sage palette in light and dark. */
+html:root[data-palette="candle"]{
+  --bg:#14110D; --surface:#1D1914; --sunk:#262019; --ink:#F3EADB; --muted:#B3A58F; --line:#3A3126; --accent:#F2B544; --accent-ink:#231703; --accent-soft:#3A2C10; --ok:#7FCB8F; --ok-soft:#1C3123; --wait:#F0A35E; --wait-soft:#3D2614; --bad:#EE8478; --bad-soft:#3F1E1A; --off:#A79C8C; --off-soft:#2B251D;
+  color-scheme:dark }
+html:root[data-palette="lagoon"]{
+  --bg:#E8F4F2; --surface:#FAFFFE; --sunk:#D8EBE8; --ink:#0E2A2E; --muted:#46625F; --line:#C1DBD7; --accent:#C24A33; --accent-ink:#FFFFFF; --accent-soft:#FBE1D9; --ok:#1F7A4A; --ok-soft:#D5EFDF; --wait:#A65A0C; --wait-soft:#FBE6CF; --bad:#B53A3A; --bad-soft:#F8DAD7; --off:#5E6F70; --off-soft:#DFEBEA;
+  color-scheme:light }
+html:root[data-palette="plum"]{
+  --bg:#1A1220; --surface:#23192B; --sunk:#2D2136; --ink:#F4E9F2; --muted:#B9A3B8; --line:#3D2C47; --accent:#FFB38A; --accent-ink:#2A1408; --accent-soft:#43283A; --ok:#8FD3A6; --ok-soft:#1F3328; --wait:#F5C66B; --wait-soft:#3C2E14; --bad:#FF8F9A; --bad-soft:#45202A; --off:#A897A8; --off-soft:#2E2434;
+  color-scheme:dark }
+html:root[data-palette="broadway"]{
+  --bg:#0C0A18; --surface:#141126; --sunk:#1C1833; --ink:#F1EEFF; --muted:#A7A0C8; --line:#2C2650; --accent:#FF4FA8; --accent-ink:#1A0010; --accent-soft:#3A1533; --ok:#4DF0C1; --ok-soft:#0F3330; --wait:#FFD34D; --wait-soft:#3A300C; --bad:#FF6B6B; --bad-soft:#3D1717; --off:#8E88B0; --off-soft:#221E3B;
+  color-scheme:dark }
+html:root[data-palette="bluebird"]{
+  --bg:#EEF1FB; --surface:#FFFFFF; --sunk:#E1E6F7; --ink:#121A3A; --muted:#525C80; --line:#D2D9F0; --accent:#2F4BD8; --accent-ink:#FFFFFF; --accent-soft:#DFE5FD; --ok:#237A4E; --ok-soft:#DAF0E2; --wait:#965800; --wait-soft:#FBEACB; --bad:#B8324A; --bad-soft:#F8DCE1; --off:#626A84; --off-soft:#E6E9F2;
+  color-scheme:light }
+
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
@@ -43,6 +60,12 @@ p{margin:0}
 .brand .logo{flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--line)}
 .brand b{font-family:var(--display);font-size:1.2rem;letter-spacing:-.01em}
 .mode{margin-left:auto;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--wait-soft);color:var(--wait)}
+.bulb{flex:none;width:38px;height:38px;margin-left:6px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer;padding:0}
+.bulb:hover{border-color:var(--accent)}
+.bulb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bulb .glass{fill:var(--accent);filter:drop-shadow(0 0 5px var(--accent))}
+.bulb .base{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-linecap:round}
+@media (prefers-reduced-motion:no-preference){.bulb.flick svg{animation:flick .55s ease-out}@keyframes flick{0%{opacity:1}18%{opacity:.25}36%{opacity:1}54%{opacity:.45}100%{opacity:1}}}
 .mode.live{background:var(--ok-soft);color:var(--ok)}
 .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 .tabs a{position:relative;display:flex;align-items:center;gap:6px;padding:10px 12px 11px;color:var(--muted);text-decoration:none;font-weight:600;font-size:.92rem;white-space:nowrap;border-bottom:2px solid transparent}
@@ -204,6 +227,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <img class="logo" src="data:image/png;base64,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" width="34" height="34" alt="">
       <b>TN-Reservoir</b>
       <span class="mode" id="modePill">Demo</span>
+      <button class="bulb" id="bulbBtn" type="button" aria-label="Change color theme" title="Change color theme"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="glass" d="M12 2.5a6.5 6.5 0 0 0-3.9 11.7c.6.5.9 1.1.9 1.8V17h6v-1c0-.7.3-1.3.9-1.8A6.5 6.5 0 0 0 12 2.5z"/><path class="base" d="M9.2 19.2h5.6M10 21.5h4"/></svg></button>
     </div>
     <nav class="tabs" aria-label="Sections">
       <a href="#book" data-tab="book">Book</a>
@@ -927,6 +951,24 @@ function route(){
   if (S.view === "admin" && S.pin && !S.admin) loadAdmin();
 }
 window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+
+/* ---------- light-bulb themes ---------- */
+const PALETTES = [["", "Sage (default)"], ["candle", "Candlelight"], ["lagoon", "Lagoon"], ["plum", "Plum Dusk"], ["broadway", "Broadway Neon"], ["bluebird", "Bluebird"]];
+let palette = ls.get("br_palette", "");
+if (!PALETTES.some(p => p[0] === palette)) palette = "";
+function applyPalette(k){
+  if (k) document.documentElement.setAttribute("data-palette", k); else document.documentElement.removeAttribute("data-palette");
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#FFFFFB";
+}
+applyPalette(palette);
+$("#bulbBtn").addEventListener("click", () => {
+  const i = PALETTES.findIndex(p => p[0] === palette), next = PALETTES[(i + 1) % PALETTES.length];
+  palette = next[0]; applyPalette(palette); ls.set("br_palette", palette);
+  const b = $("#bulbBtn"); b.classList.remove("flick"); void b.offsetWidth; b.classList.add("flick");
+  b.setAttribute("aria-label", `Change color theme (now ${next[1]})`);
+  toast(`Theme: ${next[1]}`);
+});
 
 /* ---------- start ---------- */
 renderTeamSelect();

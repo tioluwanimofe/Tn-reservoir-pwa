@@ -11,6 +11,7 @@ A small installable web app (PWA) for reserving locations. Teams send a request 
 - **Calendar:** a month view of all bookings, filterable by location.
 - **Day view:** a timeline of every location for one day.
 - **Repeating bookings (Center Workers only):** pick the weekdays and an optional last date. The location is blocked right away on every matching day (checked a year ahead for clashes). Admins can cancel a single date or end the repeat; the requester can stop it from their device.
+- **Light-bulb themes:** tap the bulb in the header to switch between Sage, Candlelight, Lagoon, Plum Dusk, Broadway Neon and Bluebird. The choice is saved on each device.
 - **My requests:** requests sent from this device, with their status. People can cancel their own requests without an account.
 - **Admin:** behind a PIN. Approve, decline or cancel requests (with a note), and add, hide or delete locations. It won't let two approved bookings overlap.
 
