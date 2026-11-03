@@ -40,6 +40,8 @@ const STARTING_LOCATIONS = [
   ['Vandy Calhoun', 'Vanderbilt'],
   ['Vandy Student Center', 'Vanderbilt'],
   ['Vandy Wilson Hall', 'Vanderbilt'],
+  ['Vandy Peabody', 'Vanderbilt'],
+  ['Vandy Featheringill Hall', 'Vanderbilt'],
   ['Belmont Barbara Massey', 'Belmont']
 ];
 const R_COLS = ['id', 'createdAt', 'name', 'team', 'buildingId', 'buildingName', 'date', 'start', 'end', 'purpose', 'status', 'adminNote', 'updatedAt', 'secret'];

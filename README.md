@@ -14,7 +14,7 @@ A small installable web app (PWA) for reserving locations. Teams send a request 
 - **Admin:** behind a PIN. Approve, decline or cancel requests (with a note), and add, hide or delete locations. It won't let two approved bookings overlap.
 
 Teams: NF1–NF4, TN1–TN4, Center Workers 15/17/18/19/20, MWG.
-Starting locations: Vandy Buttrick Hall, Vandy Calhoun, Vandy Student Center, Vandy Wilson Hall (Vanderbilt) and Belmont Barbara Massey (Belmont).
+Starting locations: Vandy Buttrick Hall, Vandy Calhoun, Vandy Student Center, Vandy Wilson Hall, Vandy Peabody, Vandy Featheringill Hall (Vanderbilt) and Belmont Barbara Massey (Belmont).
 
 If `API_URL` in `app/config.js` is empty, the app runs in **demo mode** instead: example data kept in the browser, admin PIN `1234`.
 

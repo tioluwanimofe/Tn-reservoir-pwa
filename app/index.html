@@ -373,6 +373,8 @@ function seed(){
       { id:"b2", name:"Vandy Calhoun", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b3", name:"Vandy Student Center", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b4", name:"Vandy Wilson Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b6", name:"Vandy Peabody", group:"Vanderbilt", capacity:"", notes:"", active:true },
+      { id:"b7", name:"Vandy Featheringill Hall", group:"Vanderbilt", capacity:"", notes:"", active:true },
       { id:"b5", name:"Belmont Barbara Massey", group:"Belmont", capacity:"", notes:"", active:true }
     ],
     bookings: [
@@ -388,7 +390,7 @@ function seed(){
 }
 async function demoCall(action, p){
   await new Promise(r => setTimeout(r, 160));
-  if (!mem) mem = ls.get("br_demo_v2", null) || seed();
+  if (!mem) mem = ls.get("br_demo_v3", null) || seed();
   const db = mem, now = new Date().toISOString();
   const pin = () => { if (p.pin !== DEMO_PIN) throw new Error("That PIN is not right. In demo mode it is 1234."); };
   const pub = r => { const { secret, ...x } = r; return x; };
@@ -441,7 +443,7 @@ async function demoCall(action, p){
     case "resetDemo": mem = seed(); out = true; break;
     default: throw new Error("Unknown action.");
   }
-  ls.set("br_demo_v2", mem);
+  ls.set("br_demo_v3", mem);
   return JSON.parse(JSON.stringify(out));
 }
 
