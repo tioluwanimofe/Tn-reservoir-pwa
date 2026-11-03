@@ -1,6 +1,6 @@
 # TN-Reservoir
 
-**Live demo:** https://tioluwanimofe.github.io/Tn-reservoir-pwa/ (demo mode, admin PIN `1234`)
+**Live app:** https://tioluwanimofe.github.io/Tn-reservoir-pwa/ (connected to the TN-Reservoir Google Sheet)
 
 A small installable web app (PWA) for reserving locations. Teams send a request for a location, date and time, and an admin approves, declines or cancels it. Everything is stored in a Google Sheet through Google Apps Script, so there is no server to run.
 
@@ -16,7 +16,7 @@ A small installable web app (PWA) for reserving locations. Teams send a request 
 Teams: NF1–NF4, TN1–TN4, Center Workers 15/17/18/19/20, MWG.
 Starting locations: Vandy Buttrick Hall, Vandy Calhoun, Vandy Student Center, Vandy Wilson Hall (Vanderbilt) and Belmont Barbara Massey (Belmont).
 
-With `API_URL` empty in `app/config.js`, the app runs in **demo mode**: example data kept in the browser, admin PIN `1234`.
+If `API_URL` in `app/config.js` is empty, the app runs in **demo mode** instead: example data kept in the browser, admin PIN `1234`.
 
 ## Repo layout
 

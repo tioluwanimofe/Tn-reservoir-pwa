@@ -1,6 +1,6 @@
 // Caches the app shell so it opens fast and works offline for viewing.
 // Booking data always comes live from the Google Sheet.
-const CACHE = "tn-reservoir-v2";
+const CACHE = "tn-reservoir-v3";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
