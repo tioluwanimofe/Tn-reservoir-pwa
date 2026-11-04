@@ -590,7 +590,7 @@ const S = {
   mine: ls.get("br_mine", []),
   me: ls.get("br_me", { name: "", team: "" }),
   pin: ss.get("br_pin", ""),
-  admin: null, adminErr: "", filter: "Pending"
+  admin: null, adminErr: "", filter: "Pending", adminLimit: 50
 };
 const groupsOf = list => { const m = new Map(); list.forEach(b => { const g = b.group || "Other"; if (!m.has(g)) m.set(g, []); m.get(g).push(b); }); return [...m.entries()]; };
 const nowHM = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -627,7 +627,8 @@ function render(){
   const mb = $("#mineBadge"); mb.hidden = !mineOpen; mb.textContent = mineOpen;
   const pend = S.admin ? S.admin.bookings.filter(r => r.status === "Pending" && r.date >= today()).length : 0;
   const ab = $("#adminBadge"); ab.hidden = !pend; ab.textContent = pend;
-  renderBuildingSelect(); renderAvail(); renderLocations(); renderCalendar(); renderSchedule(); renderMine(); renderAdmin();
+  // Only draw the tab being looked at; the others draw when opened.
+  ({ book: () => { renderBuildingSelect(); renderAvail(); }, locations: renderLocations, calendar: renderCalendar, schedule: renderSchedule, mine: renderMine, admin: renderAdmin }[S.view] || (() => {}))();
 }
 
 /* ---------- render: book ---------- */
@@ -845,13 +846,13 @@ function renderAdmin(){
   const closed = all.filter(r => !OPEN.includes(r.status) || r.date < t);
   const sets = { Pending: pending.sort(byWhen), Approved: upcoming.sort(byWhen), Repeating: reps, Closed: closed.sort((a,b) => byWhen(b,a)), All: all.slice().sort((a,b) => byWhen(b,a)) };
   const labels = { Pending: "Waiting", Approved: "Approved, upcoming", Repeating: "Repeating", Closed: "Past and closed", All: "All" };
-  const rows = sets[S.filter];
+  const rowsAll = sets[S.filter], rows = rowsAll.slice(0, S.adminLimit);
   const blds = S.admin.buildings;
   root.innerHTML = `
     <div class="sectionhead"><h1>Admin</h1><button class="btn ghost sm" data-act="lock">Lock</button></div>
     <div class="stats"><span><b>${pending.length}</b>waiting</span><span><b>${upcoming.length}</b>approved, upcoming</span><span><b>${reps.filter(seriesActive).length}</b>repeating</span><span><b>${blds.filter(b => b.active).length}</b>locations open</span></div>
     <div class="chips" role="group" aria-label="Filter requests">${Object.keys(sets).map(k => `<button class="chip" data-act="filter" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]} · ${sets[k].length}</button>`).join("")}</div>
-    <div class="list">${rows.length ? rows.map(r => S.filter === "Repeating" ? seriesCard(r, "admin") : card(r, "admin")).join("") : `<div class="empty">${S.filter === "Pending" ? "No requests waiting. You're all caught up." : "Nothing here."}</div>`}</div>
+    <div class="list">${rowsAll.length > rows.length ? `<p class="muted small">Showing ${rows.length} of ${rowsAll.length}.</p>` : ""}${rows.length ? rows.map(r => S.filter === "Repeating" ? seriesCard(r, "admin") : card(r, "admin")).join("") + (rowsAll.length > rows.length ? `<button class="btn ghost wide" data-act="more">Show ${Math.min(50, rowsAll.length - rows.length)} more</button>` : "") : `<div class="empty">${S.filter === "Pending" ? "No requests waiting. You're all caught up." : "Nothing here."}</div>`}</div>
     <div class="panel">
       <div class="head"><h2>Locations available</h2><p class="muted small">Only open locations show up for people booking. Hide a location to stop new requests without losing its history.</p></div>
       <div>${blds.length ? groupsOf(blds).map(([g, items]) => `<div class="grouphead" style="margin-top:10px"><h3>${esc(g)}</h3></div>` + items.map(b => `<div class="bldg ${b.active ? "" : "hiddenb"}"><div class="info"><b>${esc(b.name)}</b><div class="muted small">${[b.capacity ? `Holds ${esc(b.capacity)}` : "", esc(b.notes)].filter(Boolean).join(" · ") || "No details"}${b.active ? "" : " · Hidden"}</div></div>
@@ -891,7 +892,8 @@ document.addEventListener("click", async e => {
     case "day-prev": S.day = addDays(S.day, -1); renderSchedule(); break;
     case "day-next": S.day = addDays(S.day, 1); renderSchedule(); break;
     case "day-today": S.day = today(); renderSchedule(); break;
-    case "filter": S.filter = el.dataset.f; renderAdmin(); break;
+    case "filter": S.filter = el.dataset.f; S.adminLimit = 50; renderAdmin(); break;
+    case "more": S.adminLimit += 50; renderAdmin(); break;
     case "lock": S.pin = ""; S.admin = null; S.adminErr = ""; ss.del("br_pin"); render(); break;
     case "approve": adminAct(el, "setStatus", { id, status: "Approved", note: note() }, "Approved."); break;
     case "decline": adminAct(el, "setStatus", { id, status: "Declined", note: note() }, "Declined."); break;

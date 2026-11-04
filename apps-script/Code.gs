@@ -363,8 +363,10 @@ function dow_(iso) {
   return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
 }
 
-function tz_() { return ss_().getSpreadsheetTimeZone(); }
-function today_() { return Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd'); }
+// Looked up once per request (each lookup is a call to Google Sheets).
+let tzCache_ = null, todayCache_ = null;
+function tz_() { return tzCache_ || (tzCache_ = ss_().getSpreadsheetTimeZone()); }
+function today_() { return todayCache_ || (todayCache_ = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd')); }
 function addDays_(iso, n) {
   const parts = iso.split('-').map(Number);
   const d = new Date(parts[0], parts[1] - 1, parts[2] + n, 12);
