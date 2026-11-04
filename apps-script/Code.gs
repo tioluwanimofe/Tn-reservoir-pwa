@@ -23,6 +23,14 @@ const ADMIN_PIN = 'change-me';
 // pasted into a standalone Apps Script project instead of the Sheet itself.
 const SHEET_ID = '1lC11JRkFHdwg7ahJGhX-ocjQMc6s5OnZ8awk7SGRRkY';
 
+// Email alerts. They go to the Google account that owns this script.
+// To send them somewhere else too, add addresses here, e.g. 'a@x.com,b@y.com'
+// (this file is on GitHub, so keep real addresses in Apps Script only).
+const EXTRA_ALERT_EMAILS = '';
+const EMAIL_ON_NEW_REQUEST = true;
+const DAILY_SUMMARY_HOUR = 7; // 7 AM in the script's time zone
+const APP_URL = 'https://tioluwanimofe.github.io/Tn-reservoir-pwa/';
+
 const TEAMS = [
   'YA Department',
   'NF1', 'NF2', 'NF3', 'NF4',
@@ -110,13 +118,17 @@ function route_(action, p) {
 
 /* ---------- public ---------- */
 function listPublic_() {
+  const cached = cacheGet_();
+  if (cached) return cached;
   const from = isoAdd_(today_(), -30), to = isoAdd_(today_(), HORIZON_DAYS);
   const series = readAll_(SHEET_SERIES);
-  return {
+  const out = {
     buildings: readAll_(SHEET_BUILDINGS).filter(b => b.active),
     bookings: readAll_(SHEET_BOOKINGS).filter(r => r.date >= from).map(publicBooking_).concat(expandAll_(series, from, to)),
     series: series.map(publicBooking_)
   };
+  cachePut_(out);
+  return out;
 }
 
 function adminList_() {
@@ -165,6 +177,7 @@ function createBooking_(p) {
   // A pending request doesn't block anyone (approval re-checks under the lock),
   // so only the write itself needs the lock.
   locked_(() => appendRow_(SHEET_BOOKINGS, R_COLS, r));
+  notifyNew_(r, false);
   return { id: r.id, secret: r.secret };
 }
 
@@ -239,6 +252,7 @@ function createSeries_(p) {
     }
     appendRow_(SHEET_SERIES, S_COLS, s);
   });
+  notifyNew_(s, true);
   return { id: s.id, secret: s.secret };
 }
 
@@ -334,6 +348,130 @@ function deleteBuilding_(p) {
   if (!row) throw new Error('Location not found.');
   sh.deleteRow(row);
   return true;
+}
+
+/* ---------- email alerts ---------- */
+const DOW_NAMES_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function alertTo_() {
+  const me = Session.getEffectiveUser().getEmail();
+  return [me].concat(String(EXTRA_ALERT_EMAILS || '').split(',')).map(x => x.trim()).filter(Boolean).join(',');
+}
+
+function fmtTime_(t) {
+  const h = Number(t.slice(0, 2)), m = t.slice(3, 5);
+  return (h % 12 || 12) + (m === '00' ? '' : ':' + m) + (h >= 12 ? ' PM' : ' AM');
+}
+function fmtDate_(iso) {
+  const p = iso.split('-').map(Number);
+  const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  return DOW_NAMES_[d.getUTCDay()] + ', ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][p[1] - 1] + ' ' + p[2];
+}
+function esc_(v) { return String(v === undefined || v === null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// Sent after a request is saved. A failed email never fails the booking.
+function notifyNew_(r, repeating) {
+  if (!EMAIL_ON_NEW_REQUEST) return;
+  try {
+    const when = repeating
+      ? 'Every ' + parseDays_(r.days).map(i => DOW_NAMES_[i]).join(', ') + ', ' + fmtTime_(r.start) + '–' + fmtTime_(r.end) + ', from ' + fmtDate_(r.startDate) + (r.endDate ? ' to ' + fmtDate_(r.endDate) : ' (no end date)')
+      : fmtDate_(r.date) + ', ' + fmtTime_(r.start) + '–' + fmtTime_(r.end);
+    let overlap = '';
+    if (!repeating) {
+      const other = readAll_(SHEET_BOOKINGS).find(x => x.id !== r.id && x.status === 'Pending' && x.buildingId === r.buildingId && x.date === r.date && x.start < r.end && r.start < x.end);
+      if (other) overlap = 'Overlaps a pending request from ' + other.team + ' (' + fmtTime_(other.start) + '–' + fmtTime_(other.end) + ').';
+    }
+    const subject = repeating
+      ? 'TN-Reservoir: ' + r.team + ' booked ' + r.buildingName + ' (repeating)'
+      : 'TN-Reservoir: new request from ' + r.team + ' for ' + r.buildingName;
+    const lines = [
+      ['Who', r.name + ' · ' + r.team], ['Where', r.buildingName], ['When', when],
+      ['What for', r.purpose || '—'],
+      ['Status', repeating ? 'Already blocking the location (repeating bookings don\'t need approval)' : 'Waiting for approval']
+    ];
+    const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#18201D">'
+      + '<p style="margin:0 0 12px">' + (repeating ? 'A Center Workers team made a repeating booking.' : 'A new request is waiting for you.') + '</p>'
+      + '<table style="border-collapse:collapse">' + lines.map(l => '<tr><td style="padding:4px 14px 4px 0;color:#5A645F">' + l[0] + '</td><td style="padding:4px 0"><b>' + esc_(l[1]) + '</b></td></tr>').join('') + '</table>'
+      + (overlap ? '<p style="color:#94590A;margin:12px 0 0">' + esc_(overlap) + '</p>' : '')
+      + '<p style="margin:18px 0 0"><a href="' + APP_URL + '#admin" style="background:#4A6B64;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Open Admin</a></p></div>';
+    const text = lines.map(l => l[0] + ': ' + l[1]).join('\n') + (overlap ? '\n' + overlap : '') + '\n\nOpen Admin: ' + APP_URL + '#admin';
+    MailApp.sendEmail({ to: alertTo_(), subject: subject, body: text, htmlBody: html, name: 'TN-Reservoir' });
+  } catch (err) {
+    console.warn('Alert email failed: ' + err);
+  }
+}
+
+// Emails a list of requests still waiting for approval. Runs every morning once turned on.
+function sendDailySummary() {
+  const t = today_();
+  const waiting = readAll_(SHEET_BOOKINGS).filter(r => r.status === 'Pending' && r.date >= t).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  if (!waiting.length) return 'Nothing waiting; no email sent.';
+  const rows = waiting.map(r => '<tr><td style="padding:4px 12px 4px 0">' + esc_(fmtDate_(r.date)) + '</td><td style="padding:4px 12px 4px 0">' + esc_(fmtTime_(r.start) + '–' + fmtTime_(r.end)) + '</td><td style="padding:4px 12px 4px 0">' + esc_(r.buildingName) + '</td><td style="padding:4px 0">' + esc_(r.team + ' · ' + r.name) + '</td></tr>').join('');
+  const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#18201D"><p>' + waiting.length + ' request' + (waiting.length === 1 ? ' is' : 's are') + ' waiting for approval:</p>'
+    + '<table style="border-collapse:collapse">' + rows + '</table>'
+    + '<p style="margin:18px 0 0"><a href="' + APP_URL + '#admin" style="background:#4A6B64;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Open Admin</a></p></div>';
+  const text = waiting.map(r => fmtDate_(r.date) + ' ' + fmtTime_(r.start) + '–' + fmtTime_(r.end) + ' · ' + r.buildingName + ' · ' + r.team + ' · ' + r.name).join('\n') + '\n\nOpen Admin: ' + APP_URL + '#admin';
+  MailApp.sendEmail({ to: alertTo_(), subject: 'TN-Reservoir: ' + waiting.length + ' waiting for approval', body: text, htmlBody: html, name: 'TN-Reservoir' });
+  return 'Sent summary of ' + waiting.length + '.';
+}
+
+// Run once from the Apps Script editor to start the morning email (safe to run again).
+function turnOnDailySummary() {
+  ScriptApp.getProjectTriggers().filter(tr => tr.getHandlerFunction() === 'sendDailySummary').forEach(tr => ScriptApp.deleteTrigger(tr));
+  ScriptApp.newTrigger('sendDailySummary').timeBased().everyDays(1).atHour(DAILY_SUMMARY_HOUR).create();
+  return 'Daily summary on at ' + DAILY_SUMMARY_HOUR + ':00 (' + Session.getScriptTimeZone() + ').';
+}
+
+// Run once from the editor to stop the morning email.
+function turnOffDailySummary() {
+  ScriptApp.getProjectTriggers().filter(tr => tr.getHandlerFunction() === 'sendDailySummary').forEach(tr => ScriptApp.deleteTrigger(tr));
+  return 'Daily summary off.';
+}
+
+/* ---------- one-off maintenance ---------- */
+// Permanently removes the rows created by the load test (location "LOAD TEST").
+// Run it yourself from the editor; it does nothing else.
+function deleteLoadTestRows() {
+  return locked_(() => {
+    const isTest = (r) => r.buildingName === 'LOAD TEST' || /^(Load tester|Repeat tester) \d+$/.test(r.name || '');
+    const removeRows = (name, keep) => {
+      const sh = sheet_(name), rows = readAll_(name); let removed = 0;
+      for (let i = rows.length - 1; i >= 0; i--) if (!keep(rows[i])) { sh.deleteRow(i + 2); removed++; }
+      return removed;
+    };
+    const b = removeRows(SHEET_BOOKINGS, r => !isTest(r));
+    const s = removeRows(SHEET_SERIES, r => !isTest(r));
+    const l = removeRows(SHEET_BUILDINGS, r => r.name !== 'LOAD TEST');
+    const msg = 'Removed ' + b + ' test bookings, ' + s + ' test repeating bookings and ' + l + ' test location.';
+    console.log(msg);
+    return msg;
+  });
+}
+
+/* ---------- speed: short-lived copy of the public schedule ---------- */
+// Apps Script caches hold up to 100 KB per entry, so the schedule is split into pieces.
+const CACHE_KEY_ = 'pub_v1';
+function cacheGet_() {
+  try {
+    const c = CacheService.getScriptCache(), n = Number(c.get(CACHE_KEY_ + ':n'));
+    if (!n) return null;
+    const keys = []; for (let i = 0; i < n; i++) keys.push(CACHE_KEY_ + ':' + i);
+    const got = c.getAll(keys); let str = '';
+    for (let i = 0; i < keys.length; i++) { if (got[keys[i]] === undefined || got[keys[i]] === null) return null; str += got[keys[i]]; }
+    return JSON.parse(str);
+  } catch (e) { return null; }
+}
+function cachePut_(obj) {
+  try {
+    const str = JSON.stringify(obj), size = 45000, parts = {}; let n = 0;
+    for (let i = 0; i < str.length; i += size) parts[CACHE_KEY_ + ':' + (n++)] = str.slice(i, i + size);
+    if (n > 100) return; // too big to be worth caching
+    CacheService.getScriptCache().putAll(parts, 60);
+    CacheService.getScriptCache().put(CACHE_KEY_ + ':n', String(n), 60);
+  } catch (e) {}
+}
+function cacheClear_() {
+  try { CacheService.getScriptCache().remove(CACHE_KEY_ + ':n'); } catch (e) {}
 }
 
 /* ---------- helpers ---------- */
@@ -439,7 +577,7 @@ function updateRow_(name, cols, id, changes) {
 function locked_(fn) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw new Error('The booking system is busy right now. Please try again in a few seconds.');
-  try { const out = fn(); SpreadsheetApp.flush(); return out; } finally { lock.releaseLock(); }
+  try { const out = fn(); SpreadsheetApp.flush(); cacheClear_(); return out; } finally { lock.releaseLock(); }
 }
 
 function json_(o) {

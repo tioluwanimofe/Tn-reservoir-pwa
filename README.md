@@ -12,7 +12,7 @@ A small installable web app (PWA) for reserving locations. Teams send a request 
 - **Day view:** a timeline of every location for one day.
 - **Repeating bookings (Center Workers only):** pick the weekdays and an optional last date. The location is blocked right away on every matching day (checked a year ahead for clashes). Admins can cancel a single date or end the repeat; the requester can stop it from their device.
 - **Light-bulb themes:** tap the bulb in the header to switch between Sage, Candlelight, Lagoon, Plum Dusk, Broadway Neon and Bluebird. The choice is saved on each device.
-- **My requests:** requests sent from this device, with their status. People can cancel their own requests without an account.
+- **My requests:** find your requests from any phone by name and team. Requests can be cancelled from the phone that sent them (or by an admin).
 - **Admin:** behind a PIN. Approve, decline or cancel requests (with a note), and add, hide or delete locations. It won't let two approved bookings overlap.
 
 Teams: YA Department, NF1–NF4, TN1–TN4, Center Workers (15.0GI, 17GI, 18GI, 19GI, 20GI), MWG.
@@ -50,6 +50,10 @@ After changing `Code.gs`: Deploy → Manage deployments → edit → Version: Ne
 
 To change the teams, edit `TEAM_GROUPS` in `app/index.html` and `TEAMS` in `apps-script/Code.gs`.
 
+## Email alerts
+
+The script emails the Google account that owns it whenever a request or repeating booking comes in. Run `turnOnDailySummary` once in the Apps Script editor for a 7 AM email listing everything still waiting (`turnOffDailySummary` stops it). Settings are at the top of `Code.gs`.
+
 ## How the backend works
 
-The app sends every call as a `POST` with a `text/plain` JSON body, which avoids a CORS preflight against Apps Script. Writes run under `LockService` so two people can't grab the same slot at once. Each request gets a private token stored on the device that sent it; that's what lets people cancel their own request without signing in.
+The app sends every call as a `POST` with a `text/plain` JSON body, which avoids a CORS preflight against Apps Script. Writes run under `LockService` so two people can't grab the same slot at once. The public schedule is cached for 60 seconds and cleared on every change, and the app shows the last schedule it saw instantly while it fetches the latest. Each request gets a private token stored on the device that sent it; that's what lets people cancel their own request without signing in.

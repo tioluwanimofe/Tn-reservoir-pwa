@@ -335,8 +335,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <section data-view="mine" hidden>
     <div class="head">
       <h1>My requests</h1>
-      <p class="muted">Requests sent from this device. You can cancel any that are still pending or approved.</p>
+      <p class="muted">Your requests from any phone, found by your name and team. You can cancel the ones you sent from this phone.</p>
     </div>
+    <form id="lookupForm" class="panel" style="gap:12px">
+      <div class="row2 stack">
+        <div class="field"><label for="lk-name">Your name</label><input id="lk-name" autocomplete="name" maxlength="80" placeholder="As you typed it when booking"></div>
+        <div class="field"><label for="lk-team">Team</label><select id="lk-team"></select></div>
+      </div>
+      <button class="btn ghost" type="submit">Show my requests</button>
+    </form>
     <div class="list" id="mineList"></div>
   </section>
 
@@ -576,6 +583,7 @@ const S = {
   view: "book", buildings: [], bookings: [], series: [], loaded: false,
   day: today(), month: today().slice(0,7), calSel: today(), calLoc: "",
   mine: ls.get("br_mine", []),
+  lookup: ls.get("br_lookup", null),
   me: ls.get("br_me", { name: "", team: "" }),
   pin: ss.get("br_pin", ""),
   admin: null, adminErr: "", filter: "Pending", adminLimit: 50
@@ -597,6 +605,7 @@ async function refresh(){
   try {
     const d = await call("listPublic");
     S.buildings = d.buildings; S.bookings = d.bookings; S.series = d.series || []; S.loaded = true;
+    if (LIVE) ls.set("br_last_v1", { at: Date.now(), d });
   } catch(e){ toast(e.message, true); }
   render();
 }
@@ -621,7 +630,11 @@ function render(){
 
 /* ---------- render: book ---------- */
 function renderTeamSelect(){
-  $("#f-team").innerHTML = `<option value="">Choose your team</option>` +
+  $("#f-team").innerHTML = teamOptions();
+  $("#lk-team").innerHTML = teamOptions();
+}
+function teamOptions(){
+  return `<option value="">Choose your team</option>` +
     TEAM_GROUPS.map(([g, items]) => items.length === 1 ? `<option value="${esc(items[0])}">${esc(items[0])}</option>` :
       `<optgroup label="${esc(g)}">${items.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</optgroup>`).join("");
 }
@@ -711,7 +724,7 @@ function card(r, mode){
   }
   if (r.seriesId){
     actions = S.pin && S.admin && r.date >= today() ? `<div class="actions"><button class="btn bad sm" data-act="skip-occ" data-id="${esc(r.seriesId)}" data-d="${esc(r.date)}" data-confirm="Tap again to cancel this date">Cancel this date</button></div>` : "";
-  } else if (mode === "mine" && OPEN.includes(r.status) && r.date >= today())
+  } else if (mode === "mine" && OPEN.includes(r.status) && r.date >= today() && onDevice(r.id))
     actions = `<div class="actions"><button class="btn bad sm" data-act="cancel-mine" data-id="${esc(r.id)}" data-confirm="Tap again to cancel">Cancel request</button></div>`;
   return `<article class="req">
     <div class="req-top">
@@ -787,7 +800,7 @@ function seriesCard(x, mode){
   const next = active ? expandSeries(x, t > x.startDate ? t : x.startDate, addDays(t, 120))[0] : null;
   const skips = String(x.skips || "").split(",").filter(d => d && d >= t);
   let actions = "";
-  if (active && mode === "mine") actions = `<div class="actions"><button class="btn bad sm" data-act="stop-series" data-id="${esc(x.id)}" data-confirm="Tap again to stop repeating">Stop repeating</button></div>`;
+  if (active && mode === "mine" && onDevice(x.id)) actions = `<div class="actions"><button class="btn bad sm" data-act="stop-series" data-id="${esc(x.id)}" data-confirm="Tap again to stop repeating">Stop repeating</button></div>`;
   if (active && mode === "admin") actions = `
     <div class="skipline"><input type="date" id="skip-${esc(x.id)}" min="${t}" aria-label="Date to cancel"${next ? ` value="${esc(next.date)}"` : ""}><button class="btn ghost sm" data-act="skip-date" data-id="${esc(x.id)}">Cancel that date</button></div>
     <div class="actions"><input id="note-${esc(x.id)}" placeholder="Note to requester (optional)" maxlength="300" aria-label="Note to requester"><button class="btn bad sm" data-act="end-series" data-id="${esc(x.id)}" data-confirm="Tap again to end the repeat">End repeat</button></div>`;
@@ -805,13 +818,22 @@ function seriesCard(x, mode){
 }
 
 /* ---------- render: mine ---------- */
-function mineRows(){ const ids = new Set(S.mine.map(m => m.id)); return S.bookings.filter(r => ids.has(r.id) && !r.seriesId); }
-function mineSeries(){ const ids = new Set(S.mine.map(m => m.id)); return S.series.filter(x => ids.has(x.id)); }
+const normName = v => String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+const onDevice = id => S.mine.some(m => m.id === id);
+// A request is "yours" if this phone sent it, or it matches the name + team you looked up.
+function isMine(r){
+  if (onDevice(r.id)) return true;
+  const lk = S.lookup; return !!(lk && lk.name && normName(r.name) === normName(lk.name) && r.team === lk.team);
+}
+function mineRows(){ return S.bookings.filter(r => !r.seriesId && isMine(r)); }
+function mineSeries(){ return S.series.filter(isMine); }
 function renderMine(){
+  if (document.activeElement !== $("#lk-name")){ $("#lk-name").value = (S.lookup && S.lookup.name) || ""; $("#lk-team").value = (S.lookup && S.lookup.team) || ""; }
   const rows = mineRows().sort((a, b) => (b.date >= today()) - (a.date >= today()) || byWhen(a, b));
   const reps = mineSeries().sort((a, b) => seriesActive(b) - seriesActive(a));
-  $("#mineList").innerHTML = (rows.length || reps.length) ? reps.map(x => seriesCard(x, "mine")).join("") + rows.map(r => card(r, "mine")).join("")
-    : `<div class="empty"><span>Requests you send from this device show up here.</span><a class="btn sm" href="#book">Request a location</a></div>`;
+  const elsewhere = rows.filter(r => !onDevice(r.id) && OPEN.includes(r.status) && r.date >= today()).length + reps.filter(x => !onDevice(x.id) && seriesActive(x)).length;
+  $("#mineList").innerHTML = (rows.length || reps.length) ? (elsewhere ? `<div class="note wait">${elsewhere === 1 ? "One request was" : `${elsewhere} requests were`} made on another phone. To cancel ${elsewhere === 1 ? "it" : "them"}, use that phone or ask an admin.</div>` : "") + reps.map(x => seriesCard(x, "mine")).join("") + rows.map(r => card(r, "mine")).join("")
+    : `<div class="empty"><span>Enter your name and team above to see your requests, or send a new one.</span><a class="btn sm" href="#book">Request a location</a></div>`;
 }
 
 /* ---------- render: admin ---------- */
@@ -927,12 +949,22 @@ document.addEventListener("submit", async e => {
         : await call("create", p);
       S.mine.push({ id: res.id, secret: res.secret }); ls.set("br_mine", S.mine);
       S.me = { name: p.name.trim(), team: p.team }; ls.set("br_me", S.me);
+      S.lookup = { name: S.me.name, team: S.me.team }; ls.set("br_lookup", S.lookup);
       $("#f-purpose").value = "";
       if (rep){ $("#f-repeat").checked = false; document.querySelectorAll("#f-days input").forEach(i => i.checked = false); syncRepeat(); }
       toast(rep ? "Repeating booking saved. The location is blocked on those days." : "Request sent. You'll see the status under My requests.");
       await refresh(); location.hash = "mine";
     } catch(err){ toast(err.message, true); }
     btn.disabled = false; syncRepeat();
+  }
+  if (f.id === "lookupForm"){
+    const name = $("#lk-name").value.trim().replace(/\s+/g, " "), team = $("#lk-team").value;
+    if (!name || !team){ toast("Enter your name and pick your team.", true); return; }
+    S.lookup = { name, team }; ls.set("br_lookup", S.lookup);
+    render();
+    const n = mineRows().length + mineSeries().length;
+    toast(n ? `Found ${n} request${n === 1 ? "" : "s"} for ${name} · ${team}.` : `No requests found for ${name} · ${team} in the last 30 days or ahead.`);
+    return;
   }
   if (f.id === "pinForm"){
     const pin = $("#f-pin").value.trim(); if (!pin) return;
@@ -988,6 +1020,10 @@ $("#f-date").value = addDays(today(), 1);
 $("#f-start").value = "18:00";
 $("#f-end").value = "20:00";
 syncRepeat();
+if (!S.lookup && S.me.name && S.me.team) S.lookup = { name: S.me.name, team: S.me.team };
+// Show the last schedule this phone saw right away (if it's from the past day), then fetch the latest.
+const last = LIVE ? ls.get("br_last_v1", null) : null;
+if (last && last.d && Date.now() - last.at < 864e5){ S.buildings = last.d.buildings || []; S.bookings = last.d.bookings || []; S.series = last.d.series || []; S.loaded = true; }
 route();
 refresh().then(() => { if (S.pin) loadAdmin(); });
 if (window.RESERVE_CONFIG && "serviceWorker" in navigator){ try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch(e){} }
