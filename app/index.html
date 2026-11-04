@@ -571,14 +571,18 @@ async function demoCall(action, p){
 }
 
 /* ---------- live backend (Google Apps Script) ---------- */
-async function remoteCall(action, p){
+async function remoteCall(action, p, attempt = 0){
   let res;
   try {
     res = await fetch(CFG.API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...p, action }) });
   } catch(e){ throw new Error("Could not reach the booking sheet. Check your connection and try again."); }
   let j;
   try { j = await res.json(); } catch(e){ throw new Error("The booking sheet sent back something unexpected. Check the web app URL in config.js."); }
-  if (!j.ok) throw new Error(j.error || "Something went wrong.");
+  if (!j.ok){
+    // The Sheet takes one save at a time; if it was busy, nothing was saved, so it's safe to try again.
+    if (/busy|lock/i.test(j.error || "") && attempt < 2){ await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 1000)); return remoteCall(action, p, attempt + 1); }
+    throw new Error(/lock timeout/i.test(j.error || "") ? "The booking system is busy right now. Please try again in a few seconds." : (j.error || "Something went wrong."));
+  }
   return j.data;
 }
 const call = (a, p = {}) => LIVE ? remoteCall(a, p) : demoCall(a, p);

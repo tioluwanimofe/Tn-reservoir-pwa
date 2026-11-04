@@ -92,11 +92,11 @@ function doPost(e) {
 function route_(action, p) {
   switch (action) {
     case 'listPublic':     return listPublic_();
-    case 'create':         return locked_(() => createBooking_(p));
+    case 'create':         return createBooking_(p);        // locks only around the save
     case 'cancelMine':     return locked_(() => cancelMine_(p));
     case 'adminCheck':     requirePin_(p); return true;
     case 'adminList':      requirePin_(p); return adminList_();
-    case 'createSeries':   return locked_(() => createSeries_(p));
+    case 'createSeries':   return createSeries_(p);         // locks around the clash check + save
     case 'stopSeries':     return locked_(() => stopSeries_(p));
     case 'skipDate':       requirePin_(p); return locked_(() => skipDate_(p));
     case 'endSeries':      requirePin_(p); return locked_(() => endSeriesAdmin_(p));
@@ -162,7 +162,9 @@ function createBooking_(p) {
     purpose: String(p.purpose || '').trim().slice(0, 300), status: 'Pending', adminNote: '',
     updatedAt: now, secret: Utilities.getUuid()
   };
-  appendRow_(SHEET_BOOKINGS, R_COLS, r);
+  // A pending request doesn't block anyone (approval re-checks under the lock),
+  // so only the write itself needs the lock.
+  locked_(() => appendRow_(SHEET_BOOKINGS, R_COLS, r));
   return { id: r.id, secret: r.secret };
 }
 
@@ -228,12 +230,15 @@ function createSeries_(p) {
   const to = endDate || isoAdd_(p.startDate, HORIZON_DAYS);
   const occ = expandSeries_(s, p.startDate, to);
   if (!occ.length) throw new Error('None of the chosen days fall between the start and last date.');
-  const approved = readAll_(SHEET_BOOKINGS).filter(r => r.status === 'Approved').concat(expandAll_(readAll_(SHEET_SERIES), p.startDate, to));
-  for (let i = 0; i < occ.length; i++) {
-    const c = clash_(approved, occ[i], 'Approved');
-    if (c) throw new Error(v.b.name + ' is already booked on ' + occ[i].date + ' (' + c.start + '–' + c.end + ', ' + c.team + '). Change the days or time.');
-  }
-  appendRow_(SHEET_SERIES, S_COLS, s);
+  // A repeating booking is approved on save, so the clash check and the save must happen together.
+  locked_(() => {
+    const approved = readAll_(SHEET_BOOKINGS).filter(r => r.status === 'Approved').concat(expandAll_(readAll_(SHEET_SERIES), p.startDate, to));
+    for (let i = 0; i < occ.length; i++) {
+      const c = clash_(approved, occ[i], 'Approved');
+      if (c) throw new Error(v.b.name + ' is already booked on ' + occ[i].date + ' (' + c.start + '–' + c.end + ', ' + c.team + '). Change the days or time.');
+    }
+    appendRow_(SHEET_SERIES, S_COLS, s);
+  });
   return { id: s.id, secret: s.secret };
 }
 
@@ -429,10 +434,12 @@ function updateRow_(name, cols, id, changes) {
   });
 }
 
+// One writer at a time. flush() makes sure the change is really in the Sheet
+// before the next request (waiting on the lock) reads it.
 function locked_(fn) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  if (!lock.tryLock(30000)) throw new Error('The booking system is busy right now. Please try again in a few seconds.');
+  try { const out = fn(); SpreadsheetApp.flush(); return out; } finally { lock.releaseLock(); }
 }
 
 function json_(o) {
